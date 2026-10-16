@@ -3,8 +3,13 @@ import { describe, expect, test } from "vitest";
 import { contrastRatio, fromHex, parseColor, toHex } from "@/lib/color/color";
 import {
   tokenFormats,
+  toAndroidColors,
+  toAndroidTheme,
   toBootstrapVariables,
   toChakraTheme,
+  toCss,
+  toCssLightDark,
+  toCssProperties,
   toFigmaVariables,
   toShadcnTheme,
   type FigmaVariablesRequest,
@@ -15,9 +20,11 @@ import {
   toStyledTheme,
   toStylus,
   toUnoConfig,
+  toXcodeColorSets,
   toYaml,
   yamlString,
 } from "@/lib/tokens/formats";
+import { xmlError } from "@/lib/test/xml";
 import type { DesignTokens } from "@/types/tokens";
 
 const tokens = (prefix = ""): DesignTokens => ({
@@ -604,5 +611,154 @@ describe("React Native theme", () => {
 
   test("is registered with the other native themes", () => {
     expect(tokenFormats(typed()).find((format) => format.id === "react-native")?.filename).toBe("theme.ts");
+  });
+});
+
+describe("CSS @property", () => {
+  const css = toCssProperties(typed("acme"));
+
+  test("registers a color, a length and a number", () => {
+    expect(css).toContain(
+      '@property --acme-color-primary {\n  syntax: "<color>";\n  inherits: true;\n  initial-value: #6366f1;\n}',
+    );
+    expect(css).toContain(
+      '@property --acme-spacing-4 {\n  syntax: "<length>";\n  inherits: true;\n  initial-value: 1rem;',
+    );
+    expect(css).toContain(
+      '@property --acme-leading-body {\n  syntax: "<number>";\n  inherits: true;\n  initial-value: 1.5;',
+    );
+    expect(css).toContain("@property --acme-spacing-0\\.5 {");
+  });
+
+  test("uses exactly the names of the CSS variables export", () => {
+    const declared = [...toCss(typed("acme")).matchAll(/^ {2}(--[^:]+):/gm)].map((match) => match[1]);
+    const registered = [...css.matchAll(/@property (--\S+) \{/g)].map((match) => match[1]);
+    expect(registered.length).toBeGreaterThan(0);
+    registered.forEach((name) => expect(declared).toContain(name));
+    expect(registered).not.toContain("--acme-font-heading");
+  });
+
+  test("is registered in the Export Engine", () => {
+    expect(tokenFormats(typed()).find((format) => format.id === "css-properties")?.filename).toBe("properties.css");
+  });
+});
+
+describe("Xcode asset catalog", () => {
+  type ColorSet = {
+    colors: {
+      idiom: string;
+      appearances?: { appearance: string; value: string }[];
+      color: { "color-space": string; components: Record<string, number> };
+    }[];
+    info: { author: string; version: number };
+  };
+
+  test("writes light and dark appearances for a color", () => {
+    const set = toXcodeColorSets(typed()).find((item) => item.role === "primary")!;
+    expect(set.name).toBe("Primary");
+    const json = JSON.parse(set.code) as ColorSet;
+    expect(json.info).toEqual({ author: "xcode", version: 1 });
+    const [light, dark] = json.colors;
+    expect(light!.appearances).toBeUndefined();
+    expect(light!.color).toEqual({
+      "color-space": "srgb",
+      components: { red: 0.388, green: 0.4, blue: 0.945, alpha: 1 },
+    });
+    expect(dark!.appearances).toEqual([{ appearance: "luminosity", value: "dark" }]);
+    expect(dark!.idiom).toBe("universal");
+    expect(dark!.color["color-space"]).toBe("srgb");
+  });
+
+  test("swaps background and foreground in dark mode", () => {
+    const sets = toXcodeColorSets(typed());
+    const background = JSON.parse(sets.find((item) => item.role === "background")!.code) as ColorSet;
+    expect(background.colors[0]!.color.components.red).toBe(1);
+    expect(background.colors[1]!.color.components.red).toBe(0.059);
+  });
+
+  test("each color set is its own ExportFormat file", () => {
+    const formats = tokenFormats(typed()).filter((format) => format.id.startsWith("xcode-"));
+    expect(formats.map((format) => format.filename)).toEqual([
+      "Primary.colorset/Contents.json",
+      "Foreground.colorset/Contents.json",
+      "Background.colorset/Contents.json",
+    ]);
+  });
+});
+
+/** Typed tokens whose primary has a 300 shade, so dark mode lifts it. */
+const themed = (prefix = ""): DesignTokens => ({
+  ...typed(prefix),
+  colors: [
+    { name: "indigo", value: fromHex("#6366f1"), shades: [{ step: 300, value: fromHex("#a5b4fc") }] },
+    { name: "slate", value: fromHex("#0f172a"), shades: [{ step: 300, value: fromHex("#cbd5e1") }] },
+  ],
+  semantic: [
+    { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+    { name: "accent", ref: "indigo", value: fromHex("#6366f1") },
+    { name: "foreground", ref: "slate", value: fromHex("#0f172a") },
+    { name: "background", ref: "white", value: fromHex("#ffffff") },
+  ],
+});
+
+describe("CSS light-dark()", () => {
+  test("writes a role as light-dark() with color-scheme on :root", () => {
+    const css = toCssLightDark(themed());
+    expect(css).toContain(":root {\n  color-scheme: light dark;");
+    expect(css).toContain("--color-primary: light-dark(#6366f1, #a5b4fc);");
+    // Background and foreground swap in dark mode.
+    expect(css).toContain("--color-background: light-dark(#ffffff, #0f172a);");
+  });
+
+  test("uses the same names and prefix as the CSS variables export", () => {
+    const names = (css: string) => css.match(/--[\w-]+(?=:)/g) ?? [];
+    const dark = names(toCssLightDark(themed("brand")));
+    expect(dark).toContain("--brand-color-primary");
+    const plain = names(toCss(themed("brand")));
+    dark.forEach((name) => expect(plain).toContain(name));
+  });
+
+  test("is registered in the Export Engine", () => {
+    expect(tokenFormats(themed()).find((format) => format.id === "css-light-dark")?.filename).toBe("light-dark.css");
+  });
+});
+
+describe("Android Material 3 theme", () => {
+  const item = (xml: string, name: string) => new RegExp(`<item name="${name}">([^<]*)</item>`).exec(xml)?.[1];
+
+  test("maps primary, surface and outline for light and dark", () => {
+    const light = toAndroidTheme(themed());
+    const dark = toAndroidTheme(themed(), true);
+    expect(light).toContain('parent="Theme.Material3.DayNight.NoActionBar"');
+    expect(item(light, "colorPrimary")).toBe("@color/primary");
+    expect(item(dark, "colorPrimary")).toBe("@color/indigo_300");
+    expect(item(light, "colorSurface")).toBe("@color/background");
+    expect(item(dark, "colorSurface")).toBe("@color/foreground");
+    expect(item(light, "colorOnSurface")).toBe("@color/foreground");
+    // Same pick as Compose: whichever of white and black contrasts more with #6366f1.
+    expect(item(light, "colorOnPrimary")).toBe("@android:color/black");
+    expect(item(light, "android:colorBackground")).toBe("@color/background");
+    expect(item(light, "colorOutline")).toMatch(/^#FF[0-9A-F]{6}$/);
+    expect(item(light, "colorOutline")).not.toBe(item(dark, "colorOutline"));
+    expect(item(light, "colorPrimaryContainer")).toMatch(/^#FF[0-9A-F]{6}$/);
+  });
+
+  test("only references colors that colors.xml defines", () => {
+    const colors = toAndroidColors(themed("brand"));
+    for (const dark of [false, true]) {
+      const xml = toAndroidTheme(themed("brand"), dark);
+      for (const [, id] of xml.matchAll(/@color\/(\w+)/g)) expect(colors).toContain(`<color name="${id}">`);
+    }
+  });
+
+  test("is well-formed XML", () => {
+    expect(xmlError(toAndroidTheme(themed()))).toBeNull();
+    expect(xmlError(toAndroidTheme(themed(), true))).toBeNull();
+    expect(xmlError(toAndroidTheme({ ...themed(), meta: { ...themed().meta, name: "A -- B & <C>" } }))).toBeNull();
+  });
+
+  test("both files are separate ExportFormat entries", () => {
+    const files = tokenFormats(themed()).filter((format) => format.id.startsWith("android-theme"));
+    expect(files.map((format) => format.filename)).toEqual(["themes.xml", "values-night/themes.xml"]);
   });
 });

@@ -12,6 +12,7 @@ import { plus } from "@/lib/background/generators/plus";
 import { rings } from "@/lib/background/generators/rings";
 import { starfield } from "@/lib/background/generators/starfield";
 import { stripes } from "@/lib/background/generators/stripes";
+import { spirograph } from "@/lib/background/generators/spirograph";
 import { squiggle } from "@/lib/background/generators/squiggle";
 import { squares } from "@/lib/background/generators/squares";
 import { sunburst } from "@/lib/background/generators/sunburst";
@@ -26,6 +27,8 @@ import { triangles } from "@/lib/background/generators/triangles";
 import { topographic } from "@/lib/background/generators/topographic";
 import { voronoi } from "@/lib/background/generators/voronoi";
 import { waves } from "@/lib/background/generators/waves";
+import { zigzag } from "@/lib/background/generators/zigzag";
+import { truchet } from "@/lib/background/generators/truchet";
 import { wrapSvg } from "@/lib/background/svg";
 import type { BackgroundDefinition, BackgroundKind, BackgroundSettings } from "@/types/background";
 
@@ -59,6 +62,9 @@ export const backgroundGenerators: BackgroundDefinition[] = [
   squiggle,
   squares,
   argyle,
+  zigzag,
+  spirograph,
+  truchet,
 ];
 
 export function getGenerator(kind: BackgroundKind): BackgroundDefinition | undefined {

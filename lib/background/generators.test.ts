@@ -3,6 +3,8 @@ import { describe, expect, test } from "vitest";
 import { backgroundCss } from "@/lib/background/export";
 import { circuitTraces, type GridNode } from "@/lib/background/generators/circuit";
 import { halftoneGradient, halftoneStrength } from "@/lib/background/generators/halftone";
+import { hypotrochoid, maxSpirographPoints } from "@/lib/background/generators/spirograph";
+import { truchetPaths } from "@/lib/background/generators/truchet";
 import { triangleSlot } from "@/lib/background/generators/triangles";
 import { voronoiCells, type Point } from "@/lib/background/generators/voronoi";
 import { createRandom } from "@/lib/background/random";
@@ -35,6 +37,9 @@ describe.each([
   "squiggle",
   "squares",
   "argyle",
+  "zigzag",
+  "spirograph",
+  "truchet",
 ] as const)("%s", (kind) => {
   test("the same seed renders the same output", () => {
     for (const patch of [{ seed: 7 }, { seed: 7, rotation: 30, density: 100, scale: 2 }]) {
@@ -80,6 +85,30 @@ test("argyle uses a seeded pattern with diamonds and dashed stitch lines", () =>
   expect(svg).toContain("<pattern");
   expect(svg).toContain("stroke-dasharray");
   expect(backgroundCss(settings("argyle"))).toContain("data:image/svg+xml");
+});
+
+test("zigzag keeps density on row spacing and scale on amplitude", () => {
+  const sparse = renderBackgroundSvg(settings("zigzag", { density: 0 }));
+  const dense = renderBackgroundSvg(settings("zigzag", { density: 100 }));
+  const small = renderBackgroundSvg(settings("zigzag", { scale: 0.25 }));
+  const large = renderBackgroundSvg(settings("zigzag", { scale: 4 }));
+  const dimensions = (svg: string) => {
+    const match = svg.match(/<pattern\b[^>]*width="([\d.]+)" height="([\d.]+)"/);
+    if (!match) throw new Error("Expected a repeating zigzag pattern");
+    return { width: Number(match[1]), height: Number(match[2]) };
+  };
+  const pathData = (svg: string) => {
+    const match = svg.match(/<path d="([^"]+)"/);
+    if (!match) throw new Error("Expected zigzag path data");
+    return match[1];
+  };
+
+  expect(sparse).toContain("<pattern");
+  expect(nodeCount(sparse)).toBeLessThan(1000);
+  expect(dimensions(sparse).height).toBeGreaterThan(dimensions(dense).height);
+  expect(dimensions(small)).toEqual(dimensions(large));
+  expect(pathData(small)).not.toBe(pathData(large));
+  expect(backgroundCss(settings("zigzag"))).toContain("data:image/svg+xml");
 });
 
 test("plus draws through a <pattern>", () => {
@@ -283,5 +312,58 @@ describe("triangles", () => {
     const sparse = tileWidth(renderBackgroundSvg(settings("triangles", { density: 0 })));
     const dense = tileWidth(renderBackgroundSvg(settings("triangles", { density: 100 })));
     expect(sparse).toBeGreaterThan(dense * 3);
+  });
+});
+
+test("spirograph stays small and bounded at every density", () => {
+  for (const density of [0, 50, 100]) {
+    const svg = renderBackgroundSvg(settings("spirograph", { density }));
+    expect(nodeCount(svg)).toBeLessThan(30);
+    expect(svg.length).toBeLessThan(60_000);
+    expect(svg).toContain("<pattern");
+    for (const [, d] of svg.matchAll(/ d="([^"]+)"/g)) {
+      expect((d!.match(/L/g) ?? []).length + 1).toBeLessThanOrEqual(maxSpirographPoints);
+    }
+  }
+});
+
+test("a hypotrochoid is a closed curve inside its radius", () => {
+  const d = hypotrochoid(100, 100, 50, [7, 3], 0.8, 0.4);
+  const points = d
+    .slice(1, -1)
+    .split("L")
+    .map((pair) => pair.split(" ").map(Number) as [number, number]);
+  expect(points.length).toBeGreaterThan(100);
+  points.forEach(([x, y]) => expect(Math.hypot(x - 100, y - 100)).toBeLessThanOrEqual(50.2));
+});
+
+describe("truchet", () => {
+  test("keeps one path per color and stays small at every density", () => {
+    for (const density of [0, 50, 100]) {
+      for (const scale of [0.5, 1]) {
+        const svg = renderBackgroundSvg(settings("truchet", { density, scale }));
+        expect(nodeCount(svg)).toBeLessThan(30);
+        expect(svg.length).toBeLessThan(80_000);
+        expect((svg.match(/<path /g) ?? []).length).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
+  test("density sets the tile size", () => {
+    const tileWidth = (svg: string) => Number(/<pattern[^>]* width="([\d.]+)"/.exec(svg)?.[1]);
+    const sparse = tileWidth(renderBackgroundSvg(settings("truchet", { density: 0 })));
+    const dense = tileWidth(renderBackgroundSvg(settings("truchet", { density: 100 })));
+    expect(sparse).toBeGreaterThan(dense);
+  });
+
+  test("every tile draws two arcs between edge midpoints", () => {
+    const [path] = truchetPaths(createRandom(3), 4, 40, 1);
+    const arcs = path!.match(/M[\d. -]+A/g) ?? [];
+    expect(arcs).toHaveLength(32);
+    for (const arc of arcs) {
+      const [x, y] = arc.slice(1, -1).trim().split(" ").map(Number) as [number, number];
+      // Every arc starts at the midpoint of a tile edge.
+      expect([x % 40, y % 40].sort()).toEqual([0, 20]);
+    }
   });
 });

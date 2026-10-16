@@ -22,6 +22,11 @@ import { patreonCover } from "@/lib/social/templates/patreon";
 import { kickBanner } from "@/lib/social/templates/kick";
 import { bandcampHeader } from "@/lib/social/templates/bandcamp";
 import { productHuntThumbnail } from "@/lib/social/templates/product-hunt-thumbnail";
+import { telegramCover } from "@/lib/social/templates/telegram";
+import { substackBanner } from "@/lib/social/templates/substack";
+import { spotifyPlaylistCover } from "@/lib/social/templates/spotify";
+import { devtoCover } from "@/lib/social/templates/devto";
+import { hashnodeCover } from "@/lib/social/templates/hashnode";
 import type { SocialPlatform, SocialTemplate } from "@/lib/social/types";
 
 /** Templates register here as they are implemented. */
@@ -53,6 +58,11 @@ export const socialTemplates: SocialTemplate[] = [
   bandcampHeader,
   twitchOffline,
   linkedinEvent,
+  telegramCover,
+  substackBanner,
+  spotifyPlaylistCover,
+  devtoCover,
+  hashnodeCover,
 ];
 
 export const socialPlatforms: SocialPlatform[] = [
@@ -76,6 +86,11 @@ export const socialPlatforms: SocialPlatform[] = [
   "Patreon",
   "Kick",
   "Bandcamp",
+  "Telegram",
+  "Substack",
+  "Spotify",
+  "DEV",
+  "Hashnode",
 ];
 
 /** Ids from earlier versions, so saved selections keep working. */
