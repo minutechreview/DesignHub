@@ -90,6 +90,29 @@ describe("icon exports", () => {
     expect(solid?.code).toContain("<use href='#p'/>");
   });
 
+  test("Preact component spreads props onto the svg and keeps SVG attributes", () => {
+    const preact = iconExports("tabler:brand-github", icon, defaultIconStyle).find((format) => format.id === "preact");
+    expect(preact?.label).toBe("Preact");
+    expect(preact?.filename).toBe("BrandGithubIcon.tsx");
+    expect(preact?.language).toBe("tsx");
+    expect(preact?.code).toContain('import type { JSX } from "preact";');
+    expect(preact?.code).toContain('export function BrandGithubIcon(props: JSX.IntrinsicElements["svg"]) {');
+    expect(preact?.code).toMatch(/<svg [^>]*width="1em" height="1em"[^>]*\{\.\.\.props\}>/);
+    expect(preact?.code).toContain('stroke-width="2"');
+    expect(preact?.code).not.toMatch(/className|strokeWidth/);
+    expect(preact?.code.trimEnd().endsWith("}")).toBe(true);
+  });
+
+  test("Preact component escapes braces and rewrites xlink:href", () => {
+    const styled = { ...icon, body: "<style>.a{fill:red}</style><path class='a' d='M0 0h24'/><use xlink:href='#p'/>" };
+    const preact = iconExports("tabler:brand-github", styled, defaultIconStyle).find(
+      (format) => format.id === "preact",
+    );
+    expect(preact?.code).toContain(".a&#123;fill:red&#125;");
+    expect(preact?.code).toContain("<use href='#p'/>");
+    expect(preact?.code).not.toContain("xlink:");
+  });
+
   test("Qwik component uses component$ and spreads props onto the svg", () => {
     const qwik = iconExports("tabler:brand-github", icon, defaultIconStyle).find((format) => format.id === "qwik");
     expect(qwik?.label).toBe("Qwik");
@@ -194,5 +217,50 @@ describe("icon exports", () => {
     expect(qwik?.code).toContain(".a&#123;fill:red&#125;");
     expect(qwik?.code).toContain("<use href='#p'/>");
     expect(qwik?.code).not.toContain("xlink:");
+  });
+  test("HTML export is an inline svg with role img, an aria-label from the icon name and currentColor", () => {
+    const html = iconExports("tabler:brand-github", icon, defaultIconStyle).find((format) => format.id === "html");
+    expect(html?.label).toBe("HTML");
+    expect(html?.filename).toBe("brand-github.html");
+    expect(html?.language).toBe("html");
+    expect(html?.code).toMatch(
+      /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="1em" height="1em" viewBox="0 0 1000 1000" role="img" aria-label="Brand github">/,
+    );
+    expect(html?.code).not.toContain("aria-hidden");
+    expect(html?.code).toContain('stroke="currentColor"');
+    expect(html?.code).toContain('stroke-width="2"');
+    expect(html?.code.trimEnd().endsWith("</svg>")).toBe(true);
+  });
+
+  test("decorative HTML export is hidden from assistive technology and has no role or label", () => {
+    const html = iconExports("tabler:brand-github", icon, defaultIconStyle).find(
+      (format) => format.id === "html-decorative",
+    );
+    expect(html?.label).toBe("HTML (decorative)");
+    expect(html?.filename).toBe("brand-github.decorative.html");
+    expect(html?.language).toBe("html");
+    expect(html?.code).toMatch(/^<svg [^>]*viewBox="0 0 1000 1000" aria-hidden="true">/);
+    expect(html?.code).not.toMatch(/role=|aria-label=/);
+    expect(html?.code).toContain('stroke="currentColor"');
+  });
+
+  test("HTML export keeps the chosen color and escapes the icon name in the label", () => {
+    const html = iconExports('x:a"b<c&d_e', icon, { ...defaultIconStyle, color: "#ef4444" });
+    const code = html.find((format) => format.id === "html")?.code;
+    expect(code).toContain('aria-label="A&quot;b&lt;c&amp;d e"');
+    expect(code).toContain('stroke="#ef4444"');
+    expect(code).not.toContain("currentColor");
+  });
+
+  test("HTML export gives each use of an id its own copy so two icons on a page don't clash", () => {
+    const gradient = { ...icon, body: '<defs><linearGradient id="g"/></defs><path fill="url(#g)" d="M0 0h24v24H0z"/>' };
+    const first = iconExports("tabler:brand-github", gradient, defaultIconStyle).find((format) => format.id === "html");
+    const second = iconExports("tabler:brand-github", gradient, defaultIconStyle).find(
+      (format) => format.id === "html",
+    );
+    const idOf = (code?: string) => /id="([^"]+)"/.exec(code ?? "")?.[1];
+    expect(idOf(first?.code)).toBeDefined();
+    expect(idOf(first?.code)).not.toBe("g");
+    expect(idOf(first?.code)).not.toBe(idOf(second?.code));
   });
 });

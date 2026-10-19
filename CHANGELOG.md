@@ -9,13 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Etsy shop banner template (3360 x 840) in the Social Media Studio, with a covered shop-icon zone and safe-area-aware content.
+
+- Compare original and optimized SVGs in the SVG Playground with an aligned, clipped preview and a keyboard- and touch-operable divider.
+- HTML export in Icon Studio: an inline SVG with `role="img"` and an `aria-label` from the icon name, plus a decorative variant with `aria-hidden="true"`.
+- Preact component converter in the SVG Playground.
 - X post image template (1600 x 900) in the Social Media Studio.
 - Zigzag background generator with seeded palette-colored rows and independent density and amplitude controls.
 - Pinterest board cover template (600 x 600) in the Social Media Studio.
+- Export an icon as a Preact component.
 
 ### Changed
 
 - Announce generated and loaded Color Studio palettes to screen readers, including locked swatches kept during generation.
+
+### Fixed
+
+- Keep Color Studio undo and redo usable after global undo or redo, and reset both histories immediately when opening another project.
 
 ## v1.0.0
 

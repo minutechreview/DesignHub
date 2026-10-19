@@ -92,7 +92,7 @@ A typical design session bounces between a font site, a palette generator, a con
 ### Social Media Studio
 
 - **GitHub repository banner in 15 styles**: Minimal, Editorial, Aurora, Grid, Terminal, Glass, Gradient, Split, Bento, Spotlight, Classic, Launch, Showcase, Features and Badges
-- **LinkedIn** profile and company page covers, **X** header, **Bluesky** banner, **Facebook** page cover, **Discord** server banner, **Twitch** channel banner, **Mastodon** header, **Reddit** community banner, **Tumblr** header, **Dribbble** shot, **Behance** project cover, **Patreon** cover, **Kick** channel banner, **Twitch** offline screen, **LinkedIn** event cover, **Bandcamp** header, **Product Hunt** thumbnail, **Instagram** square post, portrait post and story, **Pinterest** pin, **Open Graph** (article, product, minimal), **Product Hunt** gallery and **YouTube** channel banner and thumbnail
+- **LinkedIn** profile and company page covers, **X** header, **Bluesky** banner, **Facebook** page cover, **Discord** server banner, **Twitch** channel banner, **Mastodon** header, **Reddit** community banner, **Tumblr** header, **Dribbble** shot, **Behance** project cover, **Patreon** cover, **Kick** channel banner, **Twitch** offline screen, **LinkedIn** event cover, **Bandcamp** header, **Etsy** shop banner, **Product Hunt** thumbnail, **Instagram** square post, portrait post and story, **Pinterest** pin, **Open Graph** (article, product, minimal), **Product Hunt** gallery and **YouTube** channel banner and thumbnail
 - Exact platform sizes, a safe-area overlay and the zones covered by avatars and timestamps
 - One content panel drives every template: project name, description, website, GitHub username, logo, primary and secondary colors, background style, border radius and padding (empty fields follow the brand)
 - Export PNG, @1x or @2x, WebP, SVG, copy the image to the clipboard, Open Graph meta tags, and **a ZIP of the assets you pick** (all of them by default)
@@ -199,6 +199,7 @@ A typical design session bounces between a font site, a palette generator, a con
 - **Fill & stroke editor** for the selected element or every shape at once
 - **Optimization engine** (built on svgson): metadata and editor-data removal, id cleanup, group collapsing, precision control, shortest absolute/relative path data, color shortening, style-to-attribute conversion - scripts and event handlers are always stripped
 - **Minify** or **pretty print**, with byte savings
+- **Compare optimized SVG**: a draggable before/after divider in the preview, with arrow keys, Shift for larger steps and Home/End for the edges. Both images share zoom and alignment; comparison is available while the source has a valid optimized result.
 - Converters: **SVG → JSX, SVG → React component (TypeScript), SVG → React Native** (react-native-svg) and **SVG → Vue**, **SVG → Svelte**, **SVG → Angular** and **SVG → SolidJS**, **SVG → Qwik**, **SVG → Lit** and **SVG → Astro** components, plus a **CSS data URI** that is shorter than base64
 - **Sprite generator**: combine many SVGs into one `<symbol>` sprite with namespaced ids and usage snippets
 - **Download optimized SVG**
