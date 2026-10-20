@@ -7,6 +7,7 @@ import {
   toAndroidTheme,
   toBootstrapVariables,
   toChakraTheme,
+  toMantineTheme,
   toCss,
   toCssLightDark,
   toCssProperties,
@@ -26,6 +27,7 @@ import {
   toYaml,
   yamlString,
 } from "@/lib/tokens/formats";
+import { toWinUiTheme } from "@/lib/tokens/native";
 import { xmlError } from "@/lib/test/xml";
 import type { DesignTokens } from "@/types/tokens";
 
@@ -106,7 +108,15 @@ test("the new formats are registered for the Export Engine and the ZIP", () => {
     ]),
   );
   expect(formats.map((format) => format.id)).toEqual(
-    expect.arrayContaining(["chakra", "bootstrap", "shadcn", "figma-variables", "nuxt-ui", "nuxt-ui-colors"]),
+    expect.arrayContaining([
+      "chakra",
+      "mantine",
+      "bootstrap",
+      "shadcn",
+      "figma-variables",
+      "nuxt-ui",
+      "nuxt-ui-colors",
+    ]),
   );
   expect(formats.find((format) => format.id === "shadcn")?.filename).toBe("globals.css");
   expect(formats.find((format) => format.id === "figma-variables")?.filename).toBe("figma-variables.json");
@@ -252,6 +262,60 @@ describe("Chakra UI", () => {
     expect(chakra).toContain('"acme-primary": {');
     expect(chakra).toContain('value: { base: "{colors.acme-indigo}", _dark: "{colors.acme-indigo.300}" },');
     expect(chakra).toContain('"acme-background": { value: { base: "#ffffff", _dark: "{colors.acme-slate}" } },');
+  });
+});
+
+describe("Mantine", () => {
+  const steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+  const hexes = [
+    "#eef2ff",
+    "#e0e7ff",
+    "#c7d2fe",
+    "#a5b4fc",
+    "#818cf8",
+    "#6366f1",
+    "#4f46e5",
+    "#4338ca",
+    "#3730a3",
+    "#312e81",
+    "#1e1b4b",
+  ];
+  const shaded: DesignTokens = {
+    ...tokens(),
+    colors: [
+      {
+        name: "indigo",
+        value: fromHex("#6366f1"),
+        shades: steps.map((step, i) => ({ step, value: fromHex(hexes[i]) })),
+      },
+    ],
+  };
+
+  test("maps one color's 50 to 900 shades onto Mantine's ten slots and sets the radius scale", () => {
+    const mantine = toMantineTheme(shaded);
+    expect(mantine).toContain('import { createTheme } from "@mantine/core";');
+    expect(mantine).toContain(
+      `indigo: [\n${hexes
+        .slice(0, 10)
+        .map((hex) => `      "${hex}",`)
+        .join("\n")}\n    ],`,
+    );
+    expect(mantine).not.toContain("#1e1b4b");
+    expect(mantine).toContain('primaryColor: "indigo",');
+    expect(mantine).toContain('radius: { lg: "0.75rem" },');
+    expect(mantine).toContain('spacing: { 4: "1rem", "0.5": "0.125rem" },');
+    expect(mantine).toContain('shadows: { md: "0 1px 2px rgb(0 0 0 / 0.1)" },');
+  });
+
+  test("fills missing shades from the base color so every tuple has ten hex entries", () => {
+    const mantine = toMantineTheme({
+      ...tokens("acme"),
+      meta: { ...tokens().meta, prefix: "acme", colorFormat: "oklch" },
+    });
+    const tuple = mantine.match(/"acme-indigo": \[([^\]]*)\]/)?.[1].match(/"#[0-9a-f]{6}"/g);
+    expect(tuple).toHaveLength(10);
+    expect(mantine).toContain('primaryColor: "acme-indigo",');
+    expect(mantine).not.toContain("oklch(");
   });
 });
 
@@ -764,6 +828,66 @@ describe("Android Material 3 theme", () => {
   test("both files are separate ExportFormat entries", () => {
     const files = tokenFormats(themed()).filter((format) => format.id.startsWith("android-theme"));
     expect(files.map((format) => format.filename)).toEqual(["themes.xml", "values-night/themes.xml"]);
+  });
+});
+
+describe("WinUI / WPF", () => {
+  const themed = (): DesignTokens => ({
+    ...tokens(),
+    colors: [
+      {
+        name: "indigo",
+        value: fromHex("#6366f1"),
+        shades: [
+          { step: 250, value: fromHex("#cdd9f3") },
+          { step: 300, value: fromHex("#a5b4fc") },
+        ],
+      },
+    ],
+    semantic: [
+      { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+      { name: "background", ref: "white", value: fromHex("#ffffff") },
+      { name: "foreground", ref: "black", value: fromHex("#0f172a") },
+    ],
+  });
+  const dictionary = (xaml: string, theme: string) =>
+    xaml.match(new RegExp(`<ResourceDictionary x:Key="${theme}">([\\s\\S]*?)</ResourceDictionary>`))?.[1] ?? "";
+
+  test("writes the palette as Color and SolidColorBrush pairs in ARGB hex", () => {
+    const xaml = toWinUiTheme(themed());
+    expect(xaml).toContain('<Color x:Key="AcmeLabsIndigoColor">#FF6366F1</Color>');
+    expect(xaml).toContain('<SolidColorBrush x:Key="AcmeLabsIndigo_250Brush" Color="#FFCDD9F3" />');
+  });
+
+  test("puts a role in both the Light and Dark theme dictionaries, lifted to shade 300 in dark", () => {
+    const xaml = toWinUiTheme(themed());
+    expect(dictionary(xaml, "Light")).toContain('<Color x:Key="AcmeLabsPrimaryRoleColor">#FF6366F1</Color>');
+    expect(dictionary(xaml, "Dark")).toContain('<Color x:Key="AcmeLabsPrimaryRoleColor">#FFA5B4FC</Color>');
+    expect(dictionary(xaml, "Dark")).toContain('<Color x:Key="AcmeLabsBackgroundRoleColor">#FF0F172A</Color>');
+  });
+
+  test("never repeats an x:Key and is well-formed XML", () => {
+    const xaml = toWinUiTheme({
+      ...themed(),
+      meta: { ...themed().meta, name: "A -- B & <C>" },
+      colors: [
+        ...themed().colors,
+        { name: "indigo-2", value: fromHex("#0f172a"), shades: [{ step: 50, value: fromHex("#f1f6ff") }] },
+      ],
+    });
+    expect(xmlError(xaml)).toBeNull();
+    const keysIn = (text: string) => [...text.matchAll(/x:Key="(\w+)"/g)].map((match) => match[1]);
+    const root = xaml.replace(
+      /<ResourceDictionary\.ThemeDictionaries>[\s\S]*<\/ResourceDictionary\.ThemeDictionaries>/,
+      "",
+    );
+    for (const scope of [root, dictionary(xaml, "Light"), dictionary(xaml, "Dark")]) {
+      expect(new Set(keysIn(scope)).size).toBe(keysIn(scope).length);
+    }
+  });
+
+  test("is registered in the Export Engine", () => {
+    expect(tokenFormats(themed()).find((format) => format.id === "winui")?.filename).toBe("Theme.xaml");
   });
 });
 

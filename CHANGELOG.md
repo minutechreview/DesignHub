@@ -18,10 +18,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zigzag background generator with seeded palette-colored rows and independent density and amplitude controls.
 - Pinterest board cover template (600 x 600) in the Social Media Studio.
 - Export an icon as a Preact component.
+- Mantine v7 theme export (`theme.ts`): `createTheme` with each palette color as a ten-shade tuple, plus primary color, fonts, headings, radius, spacing and shadows.
+- WinUI / WPF export (`Theme.xaml`): a `ResourceDictionary` with `Color` and `SolidColorBrush` resources for the palette and Light and Dark `ThemeDictionaries` for the semantic roles.
+- Scrollbar effect in the Effects Lab: thumb, hover and track colors, width and radius as `scrollbar-color` and `scrollbar-width` with a `::-webkit-scrollbar` fallback, a scrolling preview and a 3:1 thumb contrast badge.
+- Flow field background generator: seeded noise-driven curves, one path per palette color, with bounded path counts and sizes.
+- APCA view of the Color Studio contrast matrix: a WCAG 2 / APCA switch (kept for the session) showing signed Lc values with a text label and meter for the Bronze level each pair reaches.
+- Skip links to the preview and to the code and exports pane in every studio, translated (en, es, fr, hi) and moving focus into the pane.
+- Seal logo variant: the mark inside a ring with the brand name set on a circular path, repeated for short names and shrunk for long ones, exported as SVG, PNG (512 and 1024) and PDF in the logo pack.
+- App store screenshots mockup (1800 x 1320): three phones on a brand gradient, each with a caption above it taken from the headline, call to action and title fields.
+- Layout preview in the Typography pairing studio: judge a pair in a blog article, a pricing card or a landing hero, sized from the live type scale and colored from the brand, with translated labels (en, es, fr, hi).
+- Download Markdown in Brand Guidelines: one `brand-guidelines.md` in the PDF's page order and numbering, with the page text, relative links to the SVG page art and logo files, and palette and logo tables, zipped with those files.
+- `designhub` command line (`packages/cli`): `designhub build brand.designhub.json --format css,tailwind-v4 --out tokens/` writes any Export Engine format from an exported project file, deterministically, with no runtime dependencies. The workspace now has a `packages/` folder and the app package is named `designhub-app`.
+- Open `.designhub.json` files from the installed app: a `file_handlers` manifest entry and a share target (answered by the service worker, so nothing is uploaded) lead to an import prompt, translated (en, es, fr, hi), that validates and sanitizes the file like a normal import and never replaces the open project. Browsers without a launch queue see no change.
+- Brand DNA AI provider with your own API key (Anthropic Messages API, `claude-opus-5-5`): the key lives only in IndexedDB and is removed with one click, the exact downscaled images and instructions are shown before the first request, and any failure (bad key, rate limit, network, odd answer) falls back to the on-device result with a note.
 
 ### Changed
 
 - Announce generated and loaded Color Studio palettes to screen readers, including locked swatches kept during generation.
+- Translate the rest of the Typography pairing studio in every language (en, es, fr, hi): the Pair panel, the Heading and Body labels and pickers, the lock and unlock buttons, Swap, Save, Random pair, the pairing suggestion heading, the saved and curated galleries, the pair card labels and the save toast.
 
 ### Fixed
 
