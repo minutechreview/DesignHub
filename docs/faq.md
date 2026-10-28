@@ -8,9 +8,9 @@ See the [storage guide](storage.md) for exactly what is stored and where.
 
 ## Does DesignHub work offline?
 
-Most features work offline after the app and its resources have been loaded and cached. Icon search through Iconify and Google Fonts previews require an internet connection.
+A studio works offline once you have opened it online on that device: the first time a studio is shown, DesignHub keeps its page and files. A studio you never opened online says so when you are offline, and works after you open it once with a connection. Icon search through Iconify and Google Fonts previews require an internet connection.
 
-On the hosted site, the offline app shell and cached resources help DesignHub keep working without a connection.
+On the hosted site, a small app shell is installed at once and each studio is added as you open it.
 
 See the [README](../README.md) for more information about privacy and external services.
 
@@ -42,7 +42,7 @@ See [Private browsing and blocked storage](storage.md#private-browsing-and-block
 
 ## How do I back up or move my work to another browser or computer?
 
-Use Export on a project, or Export all, in Brand Projects to download `.designhub.json` files. Import them again from the same page on another browser.
+Use Export on a project, Export all, or Export as ZIP (one `.designhub.json` per project) in Brand Projects to download your projects. Import them again from the same page on another browser.
 
 Exported assets, such as tokens, logo packs, social assets and the brand book, are normal files and need no separate backup from DesignHub.
 

@@ -1,6 +1,9 @@
 import type { contrastSection, focusSection } from "@/lib/a11y/contrast";
 import type { gradientSection } from "@/lib/a11y/gradient-contrast";
+import type { HeadingsSection } from "@/lib/a11y/headings";
+import type { MotionSection } from "@/lib/a11y/motion";
 import type { Verdict } from "@/lib/a11y/readability";
+import type { TextSpacingSection } from "@/lib/a11y/text-spacing";
 import type { targetsSection } from "@/lib/a11y/targets";
 import type { PaletteColor, PaletteVisionSection, visionSection } from "@/lib/a11y/vision";
 import type { A11yColors, A11yTypography, TouchTarget } from "@/types/a11y";
@@ -28,7 +31,10 @@ export type A11yReportSections = {
     gradeLevel: number;
     checks: { check: string; value: string; verdict: Verdict }[];
   };
+  textSpacing: TextSpacingSection;
+  motion: MotionSection;
   touchTargets: ReturnType<typeof targetsSection>;
+  headings: HeadingsSection;
 };
 
 export type A11yReport = {
@@ -121,6 +127,34 @@ export function gradientTable(gradient: A11yReportSections["gradientText"]): str
   );
 }
 
+/** One row per effect that moves, with whether its CSS has a reduced-motion rule. */
+function motionTable(section: MotionSection): string {
+  return table(
+    ["Effect", "What moves", "Reduced-motion rule", "Result"],
+    section.checks.map((row) => [row.check, row.motion, row.reducedMotionRule ? "Yes" : "No", mark(row.pass)]),
+  );
+}
+
+function motionMarkdown(section: MotionSection): string {
+  if (!section.checks.length)
+    return `${section.note}\n\n${mark(true)}: no effect moves with the current Effects Lab settings.`;
+  return `${section.note}\n\n${motionTable(section)}`;
+}
+
+/** One row per brand book page whose heading structure has a problem. */
+function headingsTable(section: HeadingsSection): string {
+  return table(
+    ["Page", "Problem"],
+    section.checks.map((check) => [check.page, check.problem]),
+  );
+}
+
+function headingsMarkdown(section: HeadingsSection): string {
+  const intro = `${section.note} ${section.pages} page${section.pages === 1 ? "" : "s"} checked.`;
+  if (!section.checks.length) return `${intro}\n\n${mark(true)}: every page passes.`;
+  return `${intro}\n\n${headingsTable(section)}`;
+}
+
 /** One row per palette pair that becomes too similar under a simulation, with its lightness fix. */
 export function paletteVisionTable(section: PaletteVisionSection): string {
   return table(
@@ -201,6 +235,14 @@ export function reportToMarkdown(report: A11yReport): string {
       ["Check", "Value", "Result"],
       sections.readability.checks.map((item) => [item.check, item.value, verdictMark[item.verdict]]),
     ),
+    `## ${sections.textSpacing.criterion}`,
+    sections.textSpacing.note,
+    table(
+      ["Property", "Required", "Current", "Result"],
+      sections.textSpacing.checks.map((item) => [item.check, item.required, item.current, mark(item.pass)]),
+    ),
+    `## ${sections.motion.criterion}`,
+    motionMarkdown(sections.motion),
     "## Touch targets",
     `Gap between targets: ${sections.touchTargets.gap}px.`,
     table(
@@ -213,6 +255,8 @@ export function reportToMarkdown(report: A11yReport): string {
         item.note,
       ]),
     ),
+    `## ${sections.headings.criterion}`,
+    headingsMarkdown(sections.headings),
   ];
   return `${parts.filter(Boolean).join("\n\n")}\n`;
 }
@@ -297,7 +341,7 @@ export function contrastHtmlTable(rows: A11yReportSections["contrast"]): string 
   );
 }
 
-export function focusHtmlTable(focus: A11yReportSections["focusIndicator"]): string {
+function focusHtmlTable(focus: A11yReportSections["focusIndicator"]): string {
   return htmlTable(
     "Focus indicator contrast",
     ["Check", "Ring", "vs background", "vs component", "Required", "Result"],
@@ -314,7 +358,7 @@ export function focusHtmlTable(focus: A11yReportSections["focusIndicator"]): str
   );
 }
 
-export function gradientHtmlTable(gradient: A11yReportSections["gradientText"]): string {
+function gradientHtmlTable(gradient: A11yReportSections["gradientText"]): string {
   return htmlTable(
     "Lowest contrast of each text color on the brand gradient",
     ["Text", "Worst ratio", "Where", "Gradient there", "Required", "Result", "AA large"],
@@ -330,7 +374,7 @@ export function gradientHtmlTable(gradient: A11yReportSections["gradientText"]):
   );
 }
 
-export function paletteVisionHtmlTable(section: PaletteVisionSection): string {
+function paletteVisionHtmlTable(section: PaletteVisionSection): string {
   return htmlTable(
     "Palette pairs that are hard to tell apart under color blindness",
     ["Mode", "Colors", "Distance", "Typical vision", "Required", "Result", "Suggestion"],
@@ -350,6 +394,27 @@ export function paletteVisionHtmlTable(section: PaletteVisionSection): string {
       ]),
     ),
   );
+}
+
+function motionHtmlTable(section: MotionSection): string {
+  return htmlTable(
+    "Effects that move and their reduced-motion rule",
+    ["Effect", "What moves", "Reduced-motion rule", "Result"],
+    section.checks.map((row) => [
+      row.check,
+      row.motion,
+      row.reducedMotionRule ? "Yes" : "No",
+      html(passBadge(row.pass)),
+    ]),
+  );
+}
+
+function motionHtml(section: MotionSection): string {
+  const note = `<p>${escapeHtml(section.note)}</p>`;
+  if (!section.checks.length) {
+    return `${note}\n<p>${passBadge(true)} No effect moves with the current Effects Lab settings.</p>`;
+  }
+  return `${note}\n${motionHtmlTable(section)}`;
 }
 
 function paletteVisionHtml(section: PaletteVisionSection): string {
@@ -442,6 +507,15 @@ ${htmlTable(
   ["Check", "Value", "Result"],
   readability.checks.map((item) => [item.check, item.value, html(badge(item.verdict))]),
 )}`,
+    `<h2 id="text-spacing">${escapeHtml(sections.textSpacing.criterion)}</h2>
+<p>${escapeHtml(sections.textSpacing.note)}</p>
+${htmlTable(
+  "Text spacing against WCAG 1.4.12",
+  ["Property", "Required", "Current", "Result"],
+  sections.textSpacing.checks.map((item) => [item.check, item.required, item.current, html(passBadge(item.pass))]),
+)}`,
+    `<h2 id="motion">${escapeHtml(sections.motion.criterion)}</h2>
+${motionHtml(sections.motion)}`,
     `<h2 id="targets">Touch targets</h2>
 <p>Gap between targets: ${sections.touchTargets.gap}px.</p>
 ${htmlTable(
@@ -455,6 +529,17 @@ ${htmlTable(
     item.note,
   ]),
 )}`,
+    `<h2 id="headings">${escapeHtml(sections.headings.criterion)}</h2>
+<p>${escapeHtml(sections.headings.note)} ${sections.headings.pages} page${sections.headings.pages === 1 ? "" : "s"} checked.</p>
+${
+  sections.headings.checks.length
+    ? htmlTable(
+        "Brand book heading problems",
+        ["Page", "Problem"],
+        sections.headings.checks.map((check) => [check.page, check.problem]),
+      )
+    : `<p>${passBadge(true)} Every page passes.</p>`
+}`,
   ];
   return `<!doctype html>
 <html lang="en">

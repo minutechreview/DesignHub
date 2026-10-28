@@ -9,13 +9,15 @@ import {
   offPaletteColor,
   textCombinations,
 } from "@/lib/guidelines/pages/color-usage";
-import { introductionPage } from "@/lib/guidelines/pages/intro";
+import { contentsRows, introductionPage } from "@/lib/guidelines/pages/intro";
+import { illustrationPage, illustrationStyle, PALETTE_SHARES } from "@/lib/guidelines/pages/illustration";
 import {
   BODY_MIN_LINE_HEIGHT,
   typeHierarchy,
   typographyUsagePage,
   wrapToMeasure,
 } from "@/lib/guidelines/pages/typography-usage";
+import { cssEasing, easingAt, easingPath, EASINGS, motionDurations, motionPage } from "@/lib/guidelines/pages/motion";
 import { fitGutter, gridColumns, spacingLayoutPage } from "@/lib/guidelines/pages/spacing-layout";
 import { brandSiteFiles, pageBlocks } from "@/lib/guidelines/site";
 import { guidelineContext } from "@/lib/guidelines/test-context";
@@ -122,7 +124,7 @@ describe("color usage page", () => {
     expect(usage?.number).toBe((palette?.number ?? 0) + 1);
     expect(introductionPage.render(ctx, 2)).toContain(">Color Usage</text>");
     const skipped = guidelineContext("Acme Labs", ["color-usage"]).ctx.contents;
-    expect(skipped.find((entry) => entry.id === "typography")?.number).toBe(usage?.number);
+    expect(skipped.find((entry) => entry.id === "data-visualization")?.number).toBe(usage?.number);
   });
 
   test("splits 60 / 30 / 10 across the roles and hands a missing role to the neutrals", () => {
@@ -276,14 +278,14 @@ describe("spacing and layout page", () => {
     expect(without.get("index.html")).not.toContain("Spacing &amp; Layout");
   });
 
-  test("numbers the page after Imagery and lists it in the contents", () => {
+  test("numbers the page after Illustration and lists it in the contents", () => {
     const { ctx } = guidelineContext("Acme Labs", []);
-    const imagery = ctx.contents.find((entry) => entry.id === "imagery");
+    const imagery = ctx.contents.find((entry) => entry.id === "illustration");
     const layout = ctx.contents.find((entry) => entry.id === "spacing-layout");
     expect(layout?.number).toBe((imagery?.number ?? 0) + 1);
     expect(introductionPage.render(ctx, 2)).toContain(">Spacing &amp; Layout</text>");
     const skipped = guidelineContext("Acme Labs", ["spacing-layout"]).ctx.contents;
-    expect(skipped.find((entry) => entry.id === "ui-components")?.number).toBe(layout?.number);
+    expect(skipped.find((entry) => entry.id === "motion")?.number).toBe(layout?.number);
   });
 
   test("lays out twelve columns that fill the width, and keeps them visible with a huge gutter", () => {
@@ -336,5 +338,169 @@ describe("pageBlocks", () => {
       { tag: "p", text: "First line second line & more" },
       { tag: "p", text: "02 Mission" },
     ]);
+  });
+});
+
+describe("motion page", () => {
+  test("is in the site and its contents unless switched off", () => {
+    const { files } = site();
+    const page = files.get("motion/index.html") ?? "";
+    expect(page).toContain("<h1>Motion</h1>");
+    expect(page).toContain("<h2>DURATIONS</h2>");
+    expect(page).toContain("<h2>EASING CURVES</h2>");
+    expect(page).toContain("<h2>DO</h2>");
+    expect(page).toContain("<h2>REDUCED MOTION</h2>");
+    expect(page).toContain("prefers-reduced-motion: reduce");
+    expect(files.get("index.html")).toMatch(/<a href="motion\/index\.html"><span>[0-9]+<\/span> Motion<\/a>/);
+
+    const without = site(["motion"]).files;
+    expect(without.has("motion/index.html")).toBe(false);
+    expect(without.has("assets/pages/motion.svg")).toBe(false);
+    expect(without.get("index.html")).not.toContain("motion/index.html");
+  });
+
+  test("numbers the page after Spacing & Layout, keeps the contents numbering in order and lists it", () => {
+    const { ctx } = guidelineContext("Acme Labs", []);
+    const layout = ctx.contents.find((entry) => entry.id === "spacing-layout");
+    const motion = ctx.contents.find((entry) => entry.id === "motion");
+    expect(motion?.number).toBe((layout?.number ?? 0) + 1);
+    expect(ctx.contents.map((entry) => entry.number)).toEqual(ctx.contents.map((_, index) => index + 1));
+    expect(introductionPage.render(ctx, 2)).toContain(">Motion</text>");
+    const skipped = guidelineContext("Acme Labs", ["motion"]).ctx.contents;
+    expect(skipped.map((entry) => entry.number)).toEqual(skipped.map((_, index) => index + 1));
+    expect(skipped.find((entry) => entry.id === "ui-components")?.number).toBe(motion?.number);
+    expect(skipped.some((entry) => entry.id === "motion")).toBe(false);
+  });
+
+  test("derives fast, base and slow from one base value", () => {
+    expect(motionDurations()).toEqual({ fast: 150, base: 250, slow: 400 });
+    expect(motionDurations(100)).toEqual({ fast: 60, base: 100, slow: 160 });
+    for (const base of [40, 120, 250, 500, 900]) {
+      const { fast, base: middle, slow } = motionDurations(base);
+      expect(fast).toBeLessThan(middle);
+      expect(middle).toBeLessThan(slow);
+      for (const value of [fast, middle, slow]) expect(value % 10).toBe(0);
+    }
+  });
+
+  test("draws each easing curve as a path from the bottom left to the top right of its plot", () => {
+    const numbers = (path: string) => [...path.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
+    expect(numbers(easingPath([0.25, 0.1, 0.25, 1], 10, 20, 100))).toEqual([10, 120, 35, 110, 35, 20, 110, 20]);
+    expect(easingPath([0, 0, 1, 1], 0, 0, 100)).toBe("M0 100 C0 100, 100 0, 100 0");
+    for (const easing of EASINGS) {
+      const path = numbers(easingPath(easing.curve, 300, 400, 170));
+      expect(path.slice(0, 2)).toEqual([300, 570]);
+      expect(path.slice(-2)).toEqual([470, 400]);
+    }
+  });
+
+  test("the curves have the shape their names promise", () => {
+    const [enter, exit, move] = EASINGS.map((easing) => easing.curve);
+    // Ease out gets ahead of a straight line early, ease in falls behind it.
+    expect(easingAt(enter!, 0.2).progress).toBeGreaterThan(easingAt(enter!, 0.2).time);
+    expect(easingAt(exit!, 0.2).progress).toBeLessThan(easingAt(exit!, 0.2).time);
+    // Ease in out is symmetric about the middle.
+    expect(easingAt(move!, 0.5).progress).toBeCloseTo(0.5, 5);
+    expect(easingAt(move!, 0.5).time).toBeCloseTo(0.5, 5);
+    // Every curve starts at (0, 0) and ends at (1, 1), and its time runs forward.
+    for (const curve of EASINGS.map((easing) => easing.curve)) {
+      expect(easingAt(curve, 0)).toEqual({ time: 0, progress: 0 });
+      expect(easingAt(curve, 1)).toEqual({ time: 1, progress: 1 });
+      expect(curve[0]).toBeGreaterThanOrEqual(0);
+      expect(curve[2]).toBeLessThanOrEqual(1);
+    }
+    expect(cssEasing(EASINGS[0]!)).toBe("cubic-bezier(0.16, 1, 0.3, 1)");
+  });
+
+  test("renders well-formed SVG with the live brand colors in light and dark", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const { ctx } = guidelineContext("Acme Labs", [], mode);
+      const svg = motionPage.render(ctx, 17);
+      expect(xmlError(svg)).toBeNull();
+      expect(svg).toContain(`fill="${ctx.surface.background}"`);
+      expect(svg).toContain(`stroke="${ctx.surface.primary}"`);
+      expect(svg).toContain(">150 ms</text>");
+      expect(svg).toContain(">400 ms</text>");
+      expect(svg).toContain("cubic-bezier(0.16, 1, 0.3, 1)");
+      expect(svg).toContain(">17</text>");
+    }
+  });
+});
+
+describe("illustration page", () => {
+  test("is in the site and its contents unless switched off", () => {
+    const { files } = site();
+    const page = files.get("illustration/index.html") ?? "";
+    expect(page).toContain("<h1>Illustration</h1>");
+    expect(page).toContain("<h2>LINE WEIGHT</h2>");
+    expect(page).toContain("<h2>CORNER STYLE</h2>");
+    expect(page).toContain("<h2>PALETTE USE</h2>");
+    expect(page).toContain("<h2>DO</h2>");
+    expect(page).toContain("<h2>DON'T</h2>");
+    expect(files.has("assets/pages/illustration.svg")).toBe(true);
+    expect(files.get("index.html")).toMatch(
+      /<a href="illustration\/index\.html"><span>[0-9]+<\/span> Illustration<\/a>/,
+    );
+
+    const without = site(["illustration"]).files;
+    expect(without.has("illustration/index.html")).toBe(false);
+    expect(without.has("assets/pages/illustration.svg")).toBe(false);
+    expect(without.get("index.html")).not.toContain("illustration/index.html");
+  });
+
+  test("numbers the page after Imagery, keeps the numbering in order and lists it", () => {
+    const { ctx } = guidelineContext("Acme Labs", []);
+    const imagery = ctx.contents.find((entry) => entry.id === "imagery");
+    const illustration = ctx.contents.find((entry) => entry.id === "illustration");
+    expect(illustration?.number).toBe((imagery?.number ?? 0) + 1);
+    expect(ctx.contents.map((entry) => entry.number)).toEqual(ctx.contents.map((_, index) => index + 1));
+    expect(introductionPage.render(ctx, 2)).toContain(">Illustration</text>");
+    const skipped = guidelineContext("Acme Labs", ["illustration"]).ctx.contents;
+    expect(skipped.map((entry) => entry.number)).toEqual(skipped.map((_, index) => index + 1));
+    expect(skipped.find((entry) => entry.id === "spacing-layout")?.number).toBe(illustration?.number);
+  });
+
+  test("the Introduction contents list still fits its card with the extra page", () => {
+    const { ctx } = guidelineContext("Acme Labs", []);
+    const rows = contentsRows(ctx.contents);
+    expect(rows.some((row) => row.entry.id === "illustration")).toBe(true);
+    expect(rows[1]!.baseline - rows[0]!.baseline).toBeGreaterThanOrEqual(22);
+    // The card runs from 240 to 880 in page units.
+    expect(rows.at(-1)!.baseline).toBeLessThan(880);
+  });
+
+  test("the style follows the brand radius: sharp, soft or round", () => {
+    expect(illustrationStyle(0)).toMatchObject({ corner: "sharp", weight: 2, cornerRadius: 0, join: "miter" });
+    expect(illustrationStyle(8)).toMatchObject({ corner: "soft", weight: 3, cornerRadius: 8, cap: "round" });
+    expect(illustrationStyle(16)).toMatchObject({ corner: "round", weight: 4, cornerRadius: 16 });
+    expect(illustrationStyle(9999).cornerRadius).toBe(24);
+    const weights = [0, 2, 3, 12, 13, 40].map((radius) => illustrationStyle(radius).weight);
+    expect(weights).toEqual([...weights].sort((a, b) => a - b));
+  });
+
+  test("palette shares add up to the whole artwork", () => {
+    expect(PALETTE_SHARES.reduce((sum, part) => sum + part.share, 0)).toBe(100);
+  });
+
+  test("renders well-formed SVG with the live brand colors and radius in light and dark", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const { ctx } = guidelineContext("Acme Labs", [], mode);
+      const svg = illustrationPage.render(ctx, 17);
+      expect(xmlError(svg)).toBeNull();
+      expect(svg).toContain(`fill="${ctx.surface.background}"`);
+      expect(svg).toContain(`fill="${ctx.surface.primary}"`);
+      expect(svg).toContain(`fill="${ctx.surface.secondary}"`);
+      expect(svg).toContain(`rx="${illustrationStyle(ctx.brand.radius).cornerRadius}"`);
+      expect(svg).toContain(">17</text>");
+    }
+  });
+
+  test("a sharp brand draws sharp corners and mitred joins", () => {
+    const { ctx } = guidelineContext("Acme Labs", []);
+    const sharp = { ...ctx, brand: { ...ctx.brand, radius: 0 } };
+    const svg = illustrationPage.render(sharp, 5);
+    expect(svg).toContain('stroke-linejoin="miter"');
+    expect(svg).toContain('stroke-linecap="butt"');
+    expect(xmlError(svg)).toBeNull();
   });
 });

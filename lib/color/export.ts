@@ -295,11 +295,45 @@ export function procreateSwatches(
   };
 }
 
+/** Paint.NET palettes hold at most 96 colors. */
+export const paintNetColorLimit = 96;
+
+export type PaintNetPalette = { text: string; shadesDropped: boolean; colorsDropped: number };
+
+/**
+ * Paint.NET palette (.txt): `;` comment lines, then one `AARRGGBB` hex color per line (alpha first,
+ * uppercase). Shades go in when the whole palette fits in 96 colors; otherwise the file falls back
+ * to the base colors (and the first 96 of those), which the result reports.
+ */
+export function paintNetPalette(
+  palette: NamedColor[],
+  includeShades: boolean,
+  name = "DesignHub palette",
+): PaintNetPalette {
+  const withShades = paletteEntries(palette, includeShades);
+  const fits = withShades.length <= paintNetColorLimit;
+  const entries = fits ? withShades : paletteEntries(palette, false);
+  const kept = entries.slice(0, paintNetColorLimit);
+  const title = name.replace(/\s+/g, " ").trim() || "DesignHub palette";
+  const lines = kept.map(({ color }) => {
+    const { r, g, b, alpha } = toRgb(color);
+    return [Math.round(alpha * 255), r, g, b]
+      .map((channel) => channel.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+  });
+  return {
+    text: `; paint.net Palette File\n; Name: ${title}\n; Colors: ${kept.length}\n${lines.join("\n")}\n`,
+    shadesDropped: includeShades && !fits,
+    colorsDropped: Math.max(0, entries.length - paintNetColorLimit),
+  };
+}
+
 /** Krita's built-in sRGB profile, which it falls back to when a named profile is missing. */
 const kritaSrgbProfile = "sRGB-elle-V2-srgbtrc.icc";
 
 /** The colorset.xml inside a Krita palette. Exported for tests. */
-export function kritaColorsetXml(palette: NamedColor[], includeShades: boolean, name = "DesignHub palette"): string {
+function kritaColorsetXml(palette: NamedColor[], includeShades: boolean, name = "DesignHub palette"): string {
   const entry = (color: Oklch, label: string, column: number, indent: string) => {
     const { r, g, b } = toRgb(color);
     return [
@@ -346,7 +380,7 @@ export function kritaPalette(
 }
 
 /** SVG has no conic gradients; conic falls back to a linear gradient at the same angle. */
-export function gradientSvg(gradient: Gradient, width = 1200, height = 630): string {
+function gradientSvg(gradient: Gradient, width = 1200, height = 630): string {
   const stops = sortedStops(gradient)
     .map((stop) => {
       const opacity = stop.color.alpha < 1 ? ` stop-opacity="${stop.color.alpha}"` : "";

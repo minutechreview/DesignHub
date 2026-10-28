@@ -4,10 +4,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { indexedDbStorage } from "@/lib/db";
 import type { A11yColors, A11yTab, A11yTypography, TouchTarget, VisionMode } from "@/types/a11y";
 
-export const defaultSample =
+const defaultSample =
   "Good accessibility is good design. Clear contrast, comfortable type and generous targets help everyone read faster, tap with confidence and stay focused on what matters.";
 
-export const defaultTargets: TouchTarget[] = [
+const defaultTargets: TouchTarget[] = [
   { id: "t1", label: "Like", width: 32, height: 32 },
   { id: "t2", label: "Share", width: 32, height: 32 },
   { id: "t3", label: "Buy now", width: 120, height: 44 },
@@ -25,6 +25,9 @@ type A11yState = {
   targetGap: number;
   /** Ephemeral: letter-scrambling reading simulation. */
   dyslexiaSimulation: boolean;
+  /** Ephemeral: preview with the WCAG 1.4.12 text spacing applied. */
+  textSpacingTest: boolean;
+  setTextSpacingTest: (value: boolean) => void;
   setDyslexiaSimulation: (value: boolean) => void;
   setTab: (tab: A11yTab) => void;
   setColors: (patch: Partial<A11yColors>) => void;
@@ -56,6 +59,8 @@ export const useA11yStore = create<A11yState>()(
       targets: defaultTargets,
       targetGap: 8,
       dyslexiaSimulation: false,
+      textSpacingTest: false,
+      setTextSpacingTest: (textSpacingTest) => set({ textSpacingTest }),
       setDyslexiaSimulation: (dyslexiaSimulation) => set({ dyslexiaSimulation }),
       setTab: (tab) => set({ tab }),
       setColors: (patch) => set((state) => ({ colors: { ...state.colors, ...patch } })),

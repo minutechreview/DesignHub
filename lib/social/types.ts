@@ -56,12 +56,19 @@ export type SocialPlatform =
   | "Bandcamp"
   | "Telegram"
   | "Substack"
+  | "Ghost"
   | "Spotify"
   | "DEV"
   | "Hashnode"
-  | "Etsy";
+  | "Etsy"
+  | "Gumroad"
+  | "Ko-fi"
+  | "Buy Me a Coffee"
+  | "Notion"
+  | "Medium";
 
-export type SocialTemplate = {
+/** A template as the picker lists it: everything about it except its drawing code, which loads when it is chosen. */
+export type SocialTemplateInfo = {
   id: string;
   platform: SocialPlatform;
   label: string;
@@ -76,5 +83,8 @@ export type SocialTemplate = {
   safe: Rect;
   /** Areas covered by platform UI (profile photo, timestamps). */
   covered?: Rect[];
+};
+
+export type SocialTemplate = SocialTemplateInfo & {
   render: (ctx: SocialContext) => string;
 };

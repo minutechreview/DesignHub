@@ -28,7 +28,12 @@ export function WeightWaterfall() {
   const family = inView ? fontStack(activeFont, meta?.category) : undefined;
 
   return (
-    <Panel title="Weight waterfall" description={`Every weight ${activeFont} ships. Click one to preview it.`}>
+    <Panel
+      collapsible
+      id="typography-waterfall"
+      title="Weight waterfall"
+      description={`Every weight ${activeFont} ships. Click one to preview it.`}
+    >
       <div ref={ref} role="group" aria-label={`${activeFont} weights`} className="-mx-2 flex flex-col">
         {weights.map((weight) => {
           const selected = weight === specimen.weight;
@@ -49,6 +54,7 @@ export function WeightWaterfall() {
               </span>
               {/* A fixed line box and clipped overflow mean a font swap can't move anything. */}
               <span
+                aria-hidden
                 className="block h-9 overflow-hidden text-[28px] leading-9 text-ellipsis whitespace-nowrap"
                 style={{
                   fontFamily: family,

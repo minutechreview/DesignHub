@@ -4,6 +4,7 @@ import { Dices, RotateCcw } from "lucide-react";
 
 import { ColorList } from "@/components/backgrounds/color-list";
 import { GeneratorPicker } from "@/components/backgrounds/generator-picker";
+import { Advanced } from "@/components/ui/advanced";
 import { Button } from "@/components/ui/button";
 import { SliderField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,8 @@ import { Panel } from "@/components/ui/panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useHotkey } from "@/hooks/use-hotkeys";
+import { variantOf } from "@/lib/background/family";
+import { getGenerator } from "@/lib/background/registry";
 import { useBackgroundStore } from "@/store/background-store";
 import type { HalftoneGradientChoice } from "@/types/background";
 
@@ -34,6 +37,9 @@ export function BackgroundControls() {
   const settings = useBackgroundStore((state) => state.settings);
   const update = useBackgroundStore((state) => state.update);
   const updateOptions = useBackgroundStore((state) => state.updateOptions);
+  const setVariant = useBackgroundStore((state) => state.setVariant);
+  const generator = getGenerator(settings.kind);
+  const variants = generator?.variants;
   const randomize = useBackgroundStore((state) => state.randomize);
   const reset = useBackgroundStore((state) => state.reset);
   useHotkey("space", randomize);
@@ -54,14 +60,16 @@ export function BackgroundControls() {
         <div className="flex flex-col gap-2">
           <Label htmlFor="bg-seed">Seed</Label>
           <div className="flex flex-wrap gap-2">
-            <Input
-              id="bg-seed"
-              type="number"
-              min={1}
-              value={settings.seed}
-              onChange={(event) => update({ seed: Math.max(1, Number(event.target.value) || 1) })}
-              className="min-w-20 flex-1 font-mono tabular-nums"
-            />
+            <Advanced>
+              <Input
+                id="bg-seed"
+                type="number"
+                min={1}
+                value={settings.seed}
+                onChange={(event) => update({ seed: Math.max(1, Number(event.target.value) || 1) })}
+                className="min-w-20 flex-1 font-mono tabular-nums"
+              />
+            </Advanced>
             <Button variant="outline" onClick={randomize} className="shrink-0" title="Randomize · Space">
               <Dices /> Randomize
             </Button>
@@ -70,6 +78,27 @@ export function BackgroundControls() {
         <p className="-mt-2 text-[11px] text-subtle-foreground">
           Press <Kbd>Space</Kbd> for a new seed.
         </p>
+        {variants ? (
+          <div className="flex flex-col gap-2">
+            <Label>Look</Label>
+            <ToggleGroup
+              type="single"
+              value={variantOf(settings, variants).variant}
+              onValueChange={(value) => {
+                const next = variants.find((item) => item.variant === value);
+                if (next) setVariant(next);
+              }}
+              aria-label={`${generator?.label} look`}
+              className="w-full"
+            >
+              {variants.map((item) => (
+                <ToggleGroupItem key={item.variant} value={item.variant} className="flex-1" title={item.description}>
+                  {item.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        ) : null}
         {settings.kind === "halftone" && (
           <div className="flex flex-col gap-2">
             <Label>Gradient</Label>
@@ -105,14 +134,16 @@ export function BackgroundControls() {
           onChange={(scale) => update({ scale })}
           format={(value) => `${value.toFixed(2)}×`}
         />
-        <SliderField
-          label="Rotation"
-          value={settings.rotation}
-          min={0}
-          max={360}
-          onChange={(rotation) => update({ rotation })}
-          format={(value) => `${value}°`}
-        />
+        <Advanced>
+          <SliderField
+            label="Rotation"
+            value={settings.rotation}
+            min={0}
+            max={360}
+            onChange={(rotation) => update({ rotation })}
+            format={(value) => `${value}°`}
+          />
+        </Advanced>
         <div className="flex flex-col gap-2">
           <Label>Canvas</Label>
           <Select

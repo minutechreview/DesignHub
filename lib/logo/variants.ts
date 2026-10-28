@@ -5,7 +5,17 @@ import { monochromeSvg } from "@/lib/logo/recolor";
 import type { BrandTokens } from "@/types/brand";
 
 export type LogoVariantId =
-  "color" | "monochrome" | "inverted" | "horizontal" | "stacked" | "wordmark" | "app-icon" | "avatar" | "seal";
+  | "color"
+  | "monochrome"
+  | "inverted"
+  | "horizontal"
+  | "stacked"
+  | "wordmark"
+  | "app-icon"
+  | "avatar"
+  | "monogram"
+  | "seal"
+  | "social-share";
 
 export type VariantContext = {
   logo: string;
@@ -120,6 +130,60 @@ export function sealLettering(name: string, measure: (text: string, size: number
   const width = measure(text, SEAL_TEXT_MAX);
   const size = Math.max(SEAL_TEXT_MIN, Math.min(SEAL_TEXT_MAX, (SEAL_TEXT_MAX * available) / width));
   return { text, size: Math.round(size * 10) / 10, copies };
+}
+
+const SHARE_WIDTH = 1200;
+const SHARE_HEIGHT = 630;
+/** The lockup may fill this much of the width, inside the area most platforms crop to. */
+const SHARE_MAX = 0.7;
+
+/**
+ * Sizes for the share image's centered lockup: the natural size (mark 170 px tall, name 96 px)
+ * scaled down uniformly when it would pass `SHARE_MAX` of the width, so long names shrink instead of clipping.
+ */
+export function shareLockup(aspect: number, nameWidth: (size: number) => number) {
+  const natural = { size: 96, mark: 170, gap: 44 };
+  const naturalWidth = natural.mark * aspect + natural.gap + nameWidth(natural.size);
+  const scale = Math.min(1, (SHARE_WIDTH * SHARE_MAX) / naturalWidth);
+  const size = natural.size * scale;
+  const mark = natural.mark * scale;
+  const gap = natural.gap * scale;
+  const markWidth = mark * aspect;
+  const width = markWidth + gap + nameWidth(size);
+  return { size, mark, markWidth, gap, width, scale };
+}
+
+const MONOGRAM_SIZE = 512;
+/** Max font size as a fraction of the tile; two letters still leave clear space. */
+const MONOGRAM_TEXT_MAX = 0.42;
+/** Letters may fill this share of the tile width before the type shrinks. */
+const MONOGRAM_FILL = 0.62;
+
+/**
+ * Initials for the monogram tile: the first letter of each word (Unicode letters only, so
+ * symbols and emoji are skipped). One-word names yield a single letter; longer names yield up
+ * to two. Names with no letters fall back to "B".
+ */
+export function monogramInitials(name: string): string {
+  const letters: string[] = [];
+  for (const word of name.trim().split(/\s+/)) {
+    if (!word) continue;
+    const match = word.match(/\p{L}/u);
+    if (!match) continue;
+    letters.push(match[0]!);
+    if (letters.length === 2) break;
+  }
+  if (letters.length === 0) return "B";
+  return letters.join("").toLocaleUpperCase();
+}
+
+/** Font size that fits the initials inside the monogram tile. */
+function monogramLettering(initials: string, measure: (text: string, size: number) => number) {
+  const max = MONOGRAM_SIZE * MONOGRAM_TEXT_MAX;
+  const available = MONOGRAM_SIZE * MONOGRAM_FILL;
+  const width = measure(initials, max);
+  const size = width > available ? (max * available) / width : max;
+  return { size: Math.round(size * 10) / 10 };
 }
 
 export const logoVariants: LogoVariant[] = [
@@ -239,6 +303,25 @@ export const logoVariants: LogoVariant[] = [
     },
   },
   {
+    id: "monogram",
+    label: "Monogram",
+    description: "Initials in the heading font, centered in a circle, for avatars when there is no mark.",
+    background: () => "transparent",
+    pngSizes: [400, 1024],
+    render: (ctx) => {
+      const initials = monogramInitials(ctx.name);
+      const { size: fontSize } = monogramLettering(initials, ctx.measure);
+      const c = MONOGRAM_SIZE / 2;
+      return doc(
+        MONOGRAM_SIZE,
+        MONOGRAM_SIZE,
+        `<circle cx="${c}" cy="${c}" r="${c}" fill="${ctx.primary}"/>` +
+          `<text x="${c}" y="${c + fontSize * 0.35}" text-anchor="middle" font-family="'${ctx.fontFamily}', ui-sans-serif, system-ui, sans-serif" font-weight="${ctx.fontWeight}" font-size="${fontSize}" fill="${onPrimary(ctx)}">${escapeXml(initials)}</text>`,
+        ctx,
+      );
+    },
+  },
+  {
     id: "seal",
     label: "Seal",
     description: "Mark inside a ring with the name set around it, for stamps and stickers.",
@@ -264,6 +347,32 @@ export const logoVariants: LogoVariant[] = [
             width,
             height,
           }),
+        ctx,
+      );
+    },
+  },
+  {
+    id: "social-share",
+    label: "Social share",
+    description: "The lockup centered at 1200 x 630, for og:image and link previews.",
+    background: (ctx) => ctx.light,
+    pngSizes: [1200, 2400],
+    render: (ctx) => {
+      const lockup = shareLockup(logoAspect(ctx.logo), (size) => ctx.measure(ctx.name, size));
+      const x = (SHARE_WIDTH - lockup.width) / 2;
+      const y = (SHARE_HEIGHT - lockup.mark) / 2;
+      return doc(
+        SHARE_WIDTH,
+        SHARE_HEIGHT,
+        `<rect width="${SHARE_WIDTH}" height="${SHARE_HEIGHT}" fill="${ctx.light}"/>` +
+          nestLogo(ctx.logo, { x, y, width: lockup.markWidth, height: lockup.mark }) +
+          wordmark(
+            ctx,
+            x + lockup.markWidth + lockup.gap,
+            y + lockup.mark / 2 + lockup.size * 0.35,
+            lockup.size,
+            ctx.text,
+          ),
         ctx,
       );
     },

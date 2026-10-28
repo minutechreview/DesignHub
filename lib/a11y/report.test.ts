@@ -14,9 +14,13 @@ import {
   reportToMarkdown,
   type A11yReportInput,
 } from "@/lib/a11y/report";
+import { headingSection } from "@/lib/a11y/headings";
+import { motionSection } from "@/lib/a11y/motion";
+import { textSpacingSection } from "@/lib/a11y/text-spacing";
 import { targetsSection } from "@/lib/a11y/targets";
 import { paletteVisionSection, visionSection } from "@/lib/a11y/vision";
 import { defaultGradient } from "@/lib/color/gradient";
+import { effectDefaults } from "@/lib/effects/defaults";
 
 const input: A11yReportInput = {
   colors: { text: "#111111", background: "#ffffff", accent: "#8ab4f8", onAccent: "#ffffff" },
@@ -46,7 +50,13 @@ const report = buildReport(input, {
   vision: visionSection(input.colors),
   paletteVision: paletteVisionSection(input.palette),
   readability: { charactersPerLine: 70, readingEase: 64, gradeLevel: 8, checks: [] },
+  textSpacing: textSpacingSection(input.typography),
+  motion: motionSection(effectDefaults),
   touchTargets: targetsSection(input.targets, input.targetGap),
+  headings: headingSection([
+    { title: "Cover", html: "<h1>Cover</h1><p>Text</p>" },
+    { title: "Downloads", html: "<h1>Downloads</h1><h2>Logo</h2><h2>Design tokens</h2>" },
+  ]),
 });
 
 const rows = (markdown: string) => markdown.split("\n").map((line) => line.split(/(?<!\\)\|/).map((c) => c.trim()));
@@ -160,7 +170,10 @@ describe("reportToMarkdown", () => {
       "## Color vision",
       "## Palette under color vision",
       "## Readability",
+      "## WCAG 1.4.12 Text Spacing (AA)",
+      "## Reduced motion (prefers-reduced-motion)",
       "## Touch targets",
+      "## Brand book heading structure",
     ]);
     expect(markdown).toContain("2026-01-01T00:00:00.000Z");
   });
@@ -223,5 +236,78 @@ describe("reportToHtml", () => {
     );
     expect(hostile).toContain("&lt;b onclick=1&gt;Icon&lt;/b&gt; &amp; co");
     expect(hostile).not.toContain("<b onclick");
+  });
+});
+
+describe("text spacing in the report", () => {
+  test("Markdown and HTML list each property against the WCAG 1.4.12 minimum", () => {
+    const markdown = reportToMarkdown(report);
+    expect(markdown).toContain("## WCAG 1.4.12 Text Spacing (AA)");
+    expect(markdown).toContain("| Letter spacing | 0.12em | 0em | ❌ Fail |");
+    expect(markdown).toContain("| Line height | 1.5 | 1.5 | ✅ Pass |");
+    const html = reportToHtml(report);
+    expect(html).toContain('<h2 id="text-spacing">WCAG 1.4.12 Text Spacing (AA)</h2>');
+    expect(html).toContain("Text spacing against WCAG 1.4.12");
+  });
+
+  test("the JSON report carries the section", () => {
+    expect(report.sections.textSpacing.checks.map((item) => item.pass)).toEqual([true, false, false]);
+  });
+});
+
+describe("motion in the report", () => {
+  test("Markdown and HTML list each moving effect with its reduced-motion result", () => {
+    const markdown = reportToMarkdown(report);
+    expect(markdown).toContain("## Reduced motion (prefers-reduced-motion)");
+    expect(markdown).toContain("| Effect | What moves | Reduced-motion rule | Result |");
+    expect(markdown).toContain("| Skeleton | Animation | Yes | ✅ Pass |");
+    expect(markdown).toContain("| Button press | Transform transition | Yes | ✅ Pass |");
+    const html = reportToHtml(report);
+    expect(html).toContain('<h2 id="motion">Reduced motion (prefers-reduced-motion)</h2>');
+    expect(html).toContain('<th scope="row">Skeleton</th>');
+    expect(html).toContain("Effects that move and their reduced-motion rule");
+  });
+
+  test("a moving effect without a reduced-motion rule fails in both reports", () => {
+    const failing = {
+      ...report.sections.motion,
+      pass: false,
+      checks: [{ check: "Spinner", motion: "Animation", reducedMotionRule: false, pass: false }],
+    };
+    const changed = buildReport(input, { ...report.sections, motion: failing });
+    expect(reportToMarkdown(changed)).toContain("| Spinner | Animation | No | ❌ Fail |");
+    expect(reportToHtml(changed)).toContain('<span class="badge fail">Fail</span>');
+  });
+
+  test("says so when nothing moves", () => {
+    const none = buildReport(input, {
+      ...report.sections,
+      motion: { ...report.sections.motion, pass: true, checks: [] },
+    });
+    expect(reportToMarkdown(none)).toContain("no effect moves with the current Effects Lab settings");
+    expect(reportToHtml(none)).toContain("No effect moves with the current Effects Lab settings.");
+  });
+});
+
+describe("brand book headings in the report", () => {
+  test("Markdown and HTML list the criterion and every problem row", () => {
+    const markdown = reportToMarkdown(report);
+    expect(markdown).toContain("## Brand book heading structure");
+    expect(markdown).toContain("2 pages checked");
+    expect(markdown).toContain("✅ Pass: every page passes.");
+    const html = reportToHtml(report);
+    expect(html).toContain('<h2 id="headings">Brand book heading structure</h2>');
+    expect(html).toContain('<span class="badge pass">Pass</span>');
+  });
+
+  test("a failing page lists its problems in both reports", () => {
+    const failing = buildReport(input, {
+      ...report.sections,
+      headings: headingSection([{ title: "Logo usage", html: "<h1>Logo</h1><h1>Logo again</h1><h3>Care</h3>" }]),
+    });
+    expect(reportToMarkdown(failing)).toContain("| Logo usage | The page has 2 h1 elements; it needs exactly one. |");
+    expect(reportToMarkdown(failing)).toContain("| Logo usage | The page jumps from h1 to h3, skipping a level. |");
+    expect(reportToHtml(failing)).toContain("Brand book heading problems");
+    expect(reportToHtml(failing)).toContain("The page has 2 h1 elements; it needs exactly one.");
   });
 });

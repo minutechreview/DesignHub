@@ -8,6 +8,8 @@ DesignHub stores its translations in `lib/i18n/messages/`. The English catalog, 
 
 Use the existing translation system instead of writing translated UI text directly in components.
 
+Some areas must be complete in every language, and a test fails when a key is missing, naming the key and the language. Those areas are listed in `completeAreas` in `lib/i18n/complete-areas.ts`. Any area that is not in that list falls back to English until someone translates it, so a studio at a time is a good first contribution. When you finish translating an area in every language, add its prefix to `completeAreas` so it stays complete.
+
 ## 2. Improve an existing translation
 
 1. Open `lib/i18n/messages/` and select the language file you want to improve, such as `es.ts`, `fr.ts`, or `hi.ts`.

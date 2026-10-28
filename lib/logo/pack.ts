@@ -2,7 +2,8 @@ import { CREDIT_TEXT } from "@/lib/export/credit";
 import { imagesToPdf } from "@/lib/export/pdf";
 import { rasterize } from "@/lib/export/raster";
 import { faviconEntries, type FaviconOptions } from "@/lib/icons/favicon";
-import { logoVariants, renderVariant, type LogoVariantId, type VariantContext } from "@/lib/logo/variants";
+import { faviconSvg } from "@/lib/logo/favicon-preview";
+import { logoVariants, type LogoVariantId, type VariantContext } from "@/lib/logo/variants";
 import { svgDimensions } from "@/lib/svg-size";
 import { createZip, type ZipEntry } from "@/lib/zip";
 
@@ -16,13 +17,13 @@ export function slugify(name: string): string {
 }
 
 /** Manifest values for a favicon package: the brand name and primary color. */
-export function faviconOptions(ctx: VariantContext): FaviconOptions {
+function faviconOptions(ctx: VariantContext): FaviconOptions {
   return { appName: ctx.name, themeColor: ctx.primary, backgroundColor: ctx.light };
 }
 
 /** Favicon files built from the brand's app icon variant. */
 export async function faviconFiles(ctx: VariantContext, folder = ""): Promise<ZipEntry[]> {
-  const svg = renderVariant("app-icon", ctx);
+  const svg = faviconSvg(ctx);
   const entries = await faviconEntries(() => svg, svg, faviconOptions(ctx));
   return entries.map((entry) => ({ ...entry, name: `${folder}${entry.name}` }));
 }
@@ -48,7 +49,9 @@ function usageNotes(ctx: VariantContext, clearSpace: number): string {
     "",
     "Files: every variant as SVG (vector, preferred), PNG (4x) and PDF, plus a favicon/ folder built from the app icon.",
     "The avatar comes as PNG at 400 x 400 and 1024 x 1024, ready to upload as a profile picture.",
+    "The monogram comes as PNG at 400 x 400 and 1024 x 1024, initials for avatars when there is no mark.",
     "The seal comes as PNG at 512 x 512 and 1024 x 1024, for stamps and stickers.",
+    "The social share image comes as PNG at 1200 x 630 and 2400 x 1260, for og:image and link previews.",
     "",
     "Usage",
     `- Clear space: keep at least ${Math.round(clearSpace * 100)}% of the logo height free on every side.`,

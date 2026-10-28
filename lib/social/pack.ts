@@ -1,13 +1,18 @@
 import { CREDIT_TEXT } from "@/lib/export/credit";
 import { rasterize } from "@/lib/export/raster";
 import { slugify } from "@/lib/logo/pack";
-import { socialTemplates } from "@/lib/social/registry";
+import { isCoreTemplate, loadSocialTemplate, socialTemplates } from "@/lib/social/registry";
 import type { SocialContext } from "@/lib/social/types";
 import { createZip, type ZipEntry } from "@/lib/zip";
 
-/** Templates a pack will contain: the saved selection, or every template when there is none. */
+/** Templates of the core platforms: the pack when nothing was chosen. The others are added by choice. */
+export function defaultPackTemplates() {
+  return socialTemplates.filter(isCoreTemplate);
+}
+
+/** Templates a pack will contain: the saved selection, or the core platforms when there is none. */
 export function packTemplates(selection: string[] | null) {
-  return selection ? socialTemplates.filter((template) => selection.includes(template.id)) : socialTemplates;
+  return selection ? socialTemplates.filter((template) => selection.includes(template.id)) : defaultPackTemplates();
 }
 
 /** The selected social templates as PNGs at their platform sizes, grouped by platform. */
@@ -21,7 +26,10 @@ export async function buildSocialPack(
   const entries: ZipEntry[] = [];
   const readme = [`${ctx.brand.name} social assets`, ""];
   let done = 0;
-  for (const template of templates) {
+  for (const info of templates) {
+    // Each template's code is loaded as the pack reaches it, so only the chosen ones are fetched.
+    const template = await loadSocialTemplate(info.id);
+    if (!template) throw new Error(`Social template ${info.id} could not be loaded`);
     const image = await rasterize(template.render(ctx), 1);
     const name = `${slugify(template.platform)}/${base}-${template.id}.png`;
     entries.push({ name, data: image.bytes });

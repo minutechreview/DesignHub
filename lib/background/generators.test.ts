@@ -1,29 +1,42 @@
 import { describe, expect, test } from "vitest";
 
+import { migrateBackgroundSettings, type legacyKinds } from "@/lib/background/aliases";
 import { backgroundCss } from "@/lib/background/export";
 import { circuitTraces, type GridNode } from "@/lib/background/generators/circuit";
 import { halftoneGradient, halftoneStrength } from "@/lib/background/generators/halftone";
 import { flowAngle, maxFlowPaths, maxFlowPathPoints, valueNoise } from "@/lib/background/generators/flow-field";
+import { maxPackedCircles, packCircles } from "@/lib/background/generators/circle-packing";
+import { plaidBands } from "@/lib/background/generators/plaid";
+import { concentricArcLayout, maxConcentricArcs } from "@/lib/background/generators/arcs";
+import { rhombusTile, type RhombusFace } from "@/lib/background/generators/rhombus";
+import { grainGradientLayout, maxGrainStops } from "@/lib/background/generators/grain-gradient";
 import { hypotrochoid, maxSpirographPoints } from "@/lib/background/generators/spirograph";
+import { maxWaveLinePoints, maxWaveLines } from "@/lib/background/generators/wave-lines";
 import { truchetPaths } from "@/lib/background/generators/truchet";
 import { triangleSlot } from "@/lib/background/generators/triangles";
 import { voronoiCells, type Point } from "@/lib/background/generators/voronoi";
-import { createRandom } from "@/lib/background/random";
+import { createRandom, r1 } from "@/lib/background/random";
 import { renderBackgroundSvg } from "@/lib/background/registry";
+import { xmlError } from "@/lib/test/xml";
 import type { BackgroundKind, BackgroundSettings } from "@/types/background";
 
-const settings = (kind: BackgroundKind, patch: Partial<BackgroundSettings> = {}): BackgroundSettings => ({
-  kind,
-  seed: 42,
-  colors: ["#6366f1", "#ec4899", "#f59e0b"],
-  background: "#0b1020",
-  density: 50,
-  scale: 1,
-  rotation: 0,
-  width: 1920,
-  height: 1080,
-  ...patch,
-});
+/** Settings for a kind, old or new: an old kind (arcs, plaid, ...) is mapped to its merged generator and variant. */
+const settings = (
+  kind: BackgroundKind | keyof typeof legacyKinds,
+  patch: Partial<BackgroundSettings> = {},
+): BackgroundSettings =>
+  migrateBackgroundSettings({
+    kind,
+    seed: 42,
+    colors: ["#6366f1", "#ec4899", "#f59e0b"],
+    background: "#0b1020",
+    density: 50,
+    scale: 1,
+    rotation: 0,
+    width: 1920,
+    height: 1080,
+    ...patch,
+  });
 
 const nodeCount = (svg: string) => (svg.match(/<[a-zA-Z]/g) ?? []).length;
 
@@ -42,6 +55,12 @@ describe.each([
   "spirograph",
   "truchet",
   "flow-field",
+  "plaid",
+  "circle-packing",
+  "rhombus",
+  "wave-lines",
+  "arcs",
+  "grain-gradient",
 ] as const)("%s", (kind) => {
   test("the same seed renders the same output", () => {
     for (const patch of [{ seed: 7 }, { seed: 7, rotation: 30, density: 100, scale: 2 }]) {
@@ -398,5 +417,256 @@ describe("flow field", () => {
   test("density adds curves", () => {
     const paths = (density: number) => renderBackgroundSvg(settings("flow-field", { density })).split("M").length;
     expect(paths(100)).toBeGreaterThan(paths(0));
+  });
+});
+
+describe("plaid", () => {
+  test("bands stay inside the tile so the pattern repeats without a seam", () => {
+    const svg = renderBackgroundSvg(settings("plaid", { density: 100, scale: 2 }));
+    const tile = svg.match(/<pattern\b[^>]*width="([\d.]+)" height="([\d.]+)"/);
+    expect(tile?.[1]).toBe(tile?.[2]);
+    const period = Number(tile?.[1]);
+    for (const [, x, y, w, h] of svg.matchAll(
+      /<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" fill="#/g,
+    )) {
+      expect(Number(x) + Number(w)).toBeLessThanOrEqual(period + 0.11);
+      expect(Number(y) + Number(h)).toBeLessThanOrEqual(period + 0.11);
+    }
+  });
+
+  test("draws crossing bands of both directions in palette colors, with a CSS export", () => {
+    const svg = renderBackgroundSvg(settings("plaid"));
+    expect((svg.match(/fill-opacity="\.45"/g) ?? []).length).toBe(6);
+    expect(plaidBands(createRandom(1), 100, ["#fff"])).toHaveLength(3);
+    expect(backgroundCss(settings("plaid"))).toContain("data:image/svg+xml");
+  });
+
+  test("density sets the repeat size", () => {
+    const size = (density: number) =>
+      Number(renderBackgroundSvg(settings("plaid", { density })).match(/<pattern\b[^>]*width="([\d.]+)"/)?.[1]);
+    expect(size(0)).toBeGreaterThan(size(100));
+  });
+});
+
+describe("circle packing", () => {
+  test("no two circles overlap, and the count and attempts are capped", () => {
+    const circles = packCircles(createRandom(3), 1920, 1080, { count: 10_000, maxRadius: 100, minRadius: 3, gap: 2 });
+    expect(circles.length).toBeGreaterThan(50);
+    expect(circles.length).toBeLessThanOrEqual(maxPackedCircles);
+    for (let i = 0; i < circles.length; i += 1) {
+      for (let j = i + 1; j < circles.length; j += 1) {
+        const a = circles[i]!;
+        const b = circles[j]!;
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(a.r + b.r);
+      }
+    }
+  });
+
+  test("renders circles in the palette and stays under about 200 kB at the largest density", () => {
+    const svg = renderBackgroundSvg(settings("circle-packing", { density: 100, width: 3840, height: 2160 }));
+    expect(svg).toContain("<circle");
+    expect(svg).toMatch(/fill="#(6366f1|ec4899|f59e0b)"/);
+    expect(svg.length).toBeLessThan(200_000);
+  });
+
+  test("density adds circles", () => {
+    const count = (density: number) =>
+      (renderBackgroundSvg(settings("circle-packing", { density })).match(/<circle/g) ?? []).length;
+    expect(count(100)).toBeGreaterThan(count(0));
+  });
+});
+
+describe("rhombus", () => {
+  const bounds = (face: RhombusFace) => {
+    const xs = face.points.map(([x]) => x);
+    const ys = face.points.map(([, y]) => y);
+    return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+  };
+  // Coordinates are rounded to 0.1 px, so a shifted face matches within a rounding step.
+  const sameFace = (a: RhombusFace, b: RhombusFace, dx: number, dy: number) =>
+    a.fill === b.fill &&
+    a.points.every(
+      ([x, y], i) => Math.abs(x + dx - b.points[i]![0]) <= 0.15 && Math.abs(y + dy - b.points[i]![1]) <= 0.15,
+    );
+
+  test("the tile repeats seamlessly: every face that crosses an edge is also drawn on the other side", () => {
+    for (const radius of [10, 17.3, 40]) {
+      const tile = rhombusTile(radius, ["#6366f1", "#ec4899", "#f59e0b"], 42);
+      for (const face of tile.faces) {
+        for (const dx of [-tile.width, 0, tile.width]) {
+          for (const dy of [-tile.height, 0, tile.height]) {
+            const { left, right, top, bottom } = bounds(face);
+            const touchesTile =
+              right + dx > 0.2 && left + dx < tile.width - 0.2 && bottom + dy > 0.2 && top + dy < tile.height - 0.2;
+            if (touchesTile) {
+              const drawn = tile.faces.some((other) => sameFace(face, other, dx, dy));
+              expect(drawn, `${radius}: face at ${face.points[0]} shifted by ${dx},${dy}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test("every cube has three tones, the lightest on top and the darkest on the right", () => {
+    const tile = rhombusTile(20, ["#6366f1"], 1);
+    expect(new Set(tile.faces.map((face) => face.fill)).size).toBe(3);
+    for (let i = 0; i < tile.faces.length; i += 3) {
+      const [top, left, right] = tile.faces.slice(i, i + 3).map((face) => face.fill);
+      expect(new Set([top, left, right]).size).toBe(3);
+    }
+  });
+
+  test("the seed picks which palette colors land on the cubes", () => {
+    const colors = ["#6366f1", "#ec4899", "#f59e0b"];
+    const fills = (seed: number) => rhombusTile(20, colors, seed).faces.map((face) => face.fill);
+    expect(fills(1)).toEqual(fills(1));
+    expect(fills(1)).not.toEqual(fills(2));
+  });
+
+  test("density sets the cube size", () => {
+    const small = renderBackgroundSvg(settings("rhombus", { density: 100 }));
+    const large = renderBackgroundSvg(settings("rhombus", { density: 0 }));
+    const tileWidth = (svg: string) => Number(svg.match(/<pattern\b[^>]*width="([\d.]+)"/)?.[1]);
+    expect(tileWidth(large)).toBeGreaterThan(tileWidth(small) * 2);
+  });
+
+  test("draws through a <pattern> and exports SVG, rotated SVG and CSS", () => {
+    expect(renderBackgroundSvg(settings("rhombus"))).toContain("<pattern");
+    expect(renderBackgroundSvg(settings("rhombus", { rotation: 30 }))).toContain("rotate(30");
+    expect(backgroundCss(settings("rhombus"))).toContain("data:image/svg+xml");
+  });
+});
+
+describe("wave lines", () => {
+  test("draws parallel palette strokes, with the seed choosing amplitude and phase", () => {
+    const svg = renderBackgroundSvg(settings("wave-lines"));
+    const paths = svg.match(/<path /g) ?? [];
+    expect(paths.length).toBeGreaterThanOrEqual(6);
+    expect(paths.length).toBeLessThanOrEqual(maxWaveLines);
+    expect(svg).toContain('stroke="#6366f1"');
+    expect(svg).toContain('stroke="#ec4899"');
+    expect(svg).toContain('stroke="#f59e0b"');
+    expect(svg).toContain('fill="none"');
+    expect(xmlError(svg)).toBeNull();
+    expect(xmlError(renderBackgroundSvg(settings("wave-lines", { rotation: 30 })))).toBeNull();
+    for (const curve of svg.match(/<path d="([^"]+)"/g) ?? []) {
+      expect(curve.split("C").length - 1).toBeLessThanOrEqual(maxWaveLinePoints - 1);
+    }
+    expect(renderBackgroundSvg(settings("wave-lines", { seed: 3 }))).not.toBe(
+      renderBackgroundSvg(settings("wave-lines", { seed: 9 })),
+    );
+  });
+
+  test("density adds lines and scale changes the wave size", () => {
+    const count = (density: number) =>
+      (renderBackgroundSvg(settings("wave-lines", { density })).match(/<path /g) ?? []).length;
+    expect(count(100)).toBe(maxWaveLines);
+    expect(count(100)).toBeGreaterThan(count(0));
+    const pathData = (scale: number) =>
+      renderBackgroundSvg(settings("wave-lines", { density: 0, scale })).match(/<path d="([^"]+)"/)?.[1];
+    expect(pathData(0.25)).not.toBe(pathData(1));
+  });
+
+  test("falls back to one stroke when the palette is empty", () => {
+    const svg = renderBackgroundSvg(settings("wave-lines", { colors: [] }));
+    expect(svg).toContain('stroke="#ffffff"');
+    expect(svg).not.toContain('stroke="#6366f1"');
+  });
+
+  test("exports CSS from the SVG and stays under about 200 kB at the largest density", () => {
+    const css = backgroundCss(settings("wave-lines"));
+    expect(css).toContain("background-image:");
+    expect(css).toContain("data:image/svg+xml");
+    const svg = renderBackgroundSvg(settings("wave-lines", { density: 100, scale: 4, width: 3840, height: 2160 }));
+    expect(svg.length).toBeLessThan(200_000);
+    expect((svg.match(/<path /g) ?? []).length).toBeLessThanOrEqual(maxWaveLines);
+  });
+});
+
+describe("arcs", () => {
+  test("draws partial rings that share one center and stop short of a full turn", () => {
+    const layout = concentricArcLayout(settings("arcs"));
+    expect(layout.sweep).toBeGreaterThan(Math.PI * 0.5);
+    expect(layout.sweep).toBeLessThan(Math.PI * 2);
+    expect(layout.arcs.length).toBeGreaterThan(3);
+    expect(layout.arcs.length).toBeLessThanOrEqual(maxConcentricArcs);
+    layout.arcs.slice(1).forEach((arc, index) => {
+      expect(arc.radius).toBeGreaterThan(layout.arcs[index]!.radius);
+    });
+
+    const svg = renderBackgroundSvg(settings("arcs"));
+    expect(svg).not.toContain("<circle");
+    expect(svg.match(/<path /g)?.length).toBe(layout.arcs.length);
+    const large = layout.sweep > Math.PI ? 1 : 0;
+    for (const arc of layout.arcs) {
+      expect(svg).toContain(`A${arc.radius} ${arc.radius} 0 ${large} 1`);
+      const end = layout.start + layout.sweep;
+      const x0 = r1(layout.cx + Math.cos(layout.start) * arc.radius);
+      const y0 = r1(layout.cy + Math.sin(layout.start) * arc.radius);
+      const x1 = r1(layout.cx + Math.cos(end) * arc.radius);
+      const y1 = r1(layout.cy + Math.sin(end) * arc.radius);
+      expect(svg).toContain(`M${x0} ${y0}A${arc.radius} ${arc.radius}`);
+      expect(x0 !== x1 || y0 !== y1).toBe(true);
+    }
+  });
+
+  test("cycles the palette, and uses a neutral gray when no colors are set", () => {
+    const layout = concentricArcLayout(settings("arcs"));
+    expect(new Set(layout.arcs.map((arc) => arc.color))).toEqual(new Set(["#6366f1", "#ec4899", "#f59e0b"]));
+    layout.arcs.slice(1).forEach((arc, index) => {
+      expect(arc.color).not.toBe(layout.arcs[index]!.color);
+    });
+    const plain = concentricArcLayout(settings("arcs", { colors: [] }));
+    expect(new Set(plain.arcs.map((arc) => arc.color))).toEqual(new Set(["#888888"]));
+  });
+
+  test("density adds arcs and scale enlarges the spacing", () => {
+    const count = (density: number) => concentricArcLayout(settings("arcs", { density })).arcs.length;
+    expect(count(100)).toBeGreaterThan(count(0));
+    const radius = (scale: number) => concentricArcLayout(settings("arcs", { scale })).arcs[0]!.radius;
+    expect(radius(2)).toBeGreaterThan(radius(1));
+  });
+
+  test("the seed moves the center and the opening", () => {
+    const first = concentricArcLayout(settings("arcs", { seed: 1 }));
+    const second = concentricArcLayout(settings("arcs", { seed: 2 }));
+    expect([first.cx, first.cy, first.start, first.sweep]).not.toEqual([
+      second.cx,
+      second.cy,
+      second.start,
+      second.sweep,
+    ]);
+  });
+
+  test("exports rotated SVG and a CSS data URI", () => {
+    expect(renderBackgroundSvg(settings("arcs", { rotation: 30 }))).toContain("rotate(30");
+    expect(backgroundCss(settings("arcs"))).toContain("data:image/svg+xml");
+    const huge = renderBackgroundSvg(settings("arcs", { width: 3840, height: 2160, density: 100 }));
+    expect((huge.match(/<path /g) ?? []).length).toBeLessThanOrEqual(maxConcentricArcs);
+  });
+});
+
+describe("grain-gradient", () => {
+  test("uses the seed for the angle and the stop order", () => {
+    const layouts = [1, 2, 3, 4].map((seed) => grainGradientLayout(settings("grain-gradient", { seed })));
+    expect(new Set(layouts.map((layout) => layout.angle)).size).toBeGreaterThan(1);
+    for (const layout of layouts)
+      expect([...layout.stops].sort()).toEqual([...settings("grain-gradient").colors].sort());
+  });
+
+  test("bounds the stops and adds the canvas color to a single-color palette", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `#0000${(i + 10).toString(16)}`);
+    expect(grainGradientLayout(settings("grain-gradient", { colors: many })).stops).toHaveLength(maxGrainStops);
+    const single = grainGradientLayout(settings("grain-gradient", { colors: ["#ff0000"] })).stops;
+    expect([...single].sort()).toEqual(["#0b1020", "#ff0000"]);
+  });
+
+  test("draws the grain with feTurbulence and embeds no images", () => {
+    const svg = renderBackgroundSvg(settings("grain-gradient"));
+    expect(svg).toContain("<feTurbulence");
+    expect(svg).not.toContain("<image");
+    expect(svg).not.toContain("data:");
+    expect(svg.length).toBeLessThan(2500);
   });
 });

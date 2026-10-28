@@ -1,6 +1,9 @@
 import type { ComponentType } from "react";
 
 import { BorderControls } from "@/components/effects/border-controls";
+import { ButtonPressControls } from "@/components/effects/button-press-controls";
+import { CardTiltControls } from "@/components/effects/card-tilt-controls";
+import { DuotoneControls } from "@/components/effects/duotone-controls";
 import { FocusRingControls } from "@/components/effects/focus-ring-controls";
 import { GlassControls } from "@/components/effects/glass-controls";
 import { HighlighterControls } from "@/components/effects/highlighter-controls";
@@ -8,9 +11,13 @@ import { GlowControls } from "@/components/effects/glow-controls";
 import { GradientTextControls } from "@/components/effects/gradient-text-controls";
 import { GrainControls } from "@/components/effects/grain-controls";
 import { InsetControls } from "@/components/effects/inset-controls";
+import { LinkUnderlineControls } from "@/components/effects/link-underline-controls";
 import { LongShadowControls } from "@/components/effects/long-shadow-controls";
 import { NeumorphismControls } from "@/components/effects/neumorphism-controls";
+import { ScrimControls } from "@/components/effects/scrim-controls";
 import { ScrollbarControls } from "@/components/effects/scrollbar-controls";
+import { ScrollShadowControls } from "@/components/effects/scroll-shadow-controls";
+import { SelectionControls } from "@/components/effects/selection-controls";
 import { ShadowControls } from "@/components/effects/shadow-controls";
 import { SkeletonControls } from "@/components/effects/skeleton-controls";
 import { TextOutlineControls } from "@/components/effects/text-outline-controls";
@@ -32,4 +39,11 @@ export const effectControls: Partial<Record<EffectKind, ComponentType>> = {
   "focus-ring": FocusRingControls,
   highlighter: HighlighterControls,
   scrollbar: ScrollbarControls,
+  selection: SelectionControls,
+  "scroll-shadow": ScrollShadowControls,
+  "button-press": ButtonPressControls,
+  "link-underline": LinkUnderlineControls,
+  duotone: DuotoneControls,
+  scrim: ScrimControls,
+  "card-tilt": CardTiltControls,
 };

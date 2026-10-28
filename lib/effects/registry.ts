@@ -1,5 +1,8 @@
 import { border } from "@/lib/effects/border";
+import { buttonPress } from "@/lib/effects/button-press";
+import { cardTilt } from "@/lib/effects/card-tilt";
 import { defaultEffectContext, type AnyEffectDefinition, type EffectDefinition } from "@/lib/effects/define";
+import { duotone } from "@/lib/effects/duotone";
 import { focusRing } from "@/lib/effects/focus-ring";
 import { glass } from "@/lib/effects/glass";
 import { highlighter } from "@/lib/effects/highlighter";
@@ -7,9 +10,13 @@ import { gradientText } from "@/lib/effects/gradient-text";
 import { glow } from "@/lib/effects/glow";
 import { grain } from "@/lib/effects/grain";
 import { inset } from "@/lib/effects/inset";
+import { linkUnderline } from "@/lib/effects/link-underline";
 import { longShadow } from "@/lib/effects/long-shadow";
 import { neumorphism } from "@/lib/effects/neumorphism";
+import { scrim } from "@/lib/effects/scrim";
 import { scrollbar } from "@/lib/effects/scrollbar";
+import { scrollShadow } from "@/lib/effects/scroll-shadow";
+import { selection } from "@/lib/effects/selection";
 import { shadow } from "@/lib/effects/shadow";
 import { skeleton } from "@/lib/effects/skeleton";
 import { textOutline } from "@/lib/effects/text-outline";
@@ -31,6 +38,13 @@ export const effectDefinitions: AnyEffectDefinition[] = [
   focusRing,
   highlighter,
   scrollbar,
+  selection,
+  scrollShadow,
+  buttonPress,
+  linkUnderline,
+  duotone,
+  scrim,
+  cardTilt,
 ];
 
 export function generateEffect<K extends EffectKind>(

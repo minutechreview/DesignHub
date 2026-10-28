@@ -9,6 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A calmer, faster 2.0.0 start, in one list. **Less crowded:** the home page is a short start and a studio chooser (a goal in a few words leads to a studio), the command palette opens short (recent actions, the studios and three common actions) and shows fonts, icons and links only when you type, the sidebar groups fold, control panels fold and remember which are open, and the Effects Lab, the Background Studio, the Mockup Studio and the Social Media Studio group their long pickers by purpose with a search that matches names, sizes and old names. **Simple and Advanced mode:** a switch in the Typography, Color, Effects, Background and Export studios shows the common controls first and the rest in Advanced (also in the command palette, remembered, and the same settings either way). **Phones:** a studio shows one pane at a time (Controls, Preview, Output) with a bar at the bottom, and the skip links open the pane they point to.
+- A size budget for every route (`bundle-budget.json`, checked by `pnpm bundle:size` and in CI), an unused code and dependency check (`pnpm check:unused`, knip, in CI), and a unit test for the budget file.
+- Autosave counters (`saveStats()`, and `__designhubSaves()` in the console in development): saves requested, written, skipped and coalesced.
+- Tests that run the generated service worker against a fake cache and fetch (install size, a studio kept on first open, the offline note, the two-build update and the cache cap), a test that renders each heavy background generator through the worker interface, tests that the font catalog parts and the template lists agree, and end-to-end tests for the pickers, the modes, the panels, the sidebar groups, the home page, the phone panes, typing and template switching.
+- Project file version 2 and migrations from 1.0 (`lib/projects/migrate.ts`): files, share links and the snapshots saved in IndexedDB carry a version; a version 1 file, link or stored project is migrated in memory (the ZIP selection of the social studio is part of the snapshot now, and effects added since 1.0 get their defaults), a file from a newer version is refused with a message that says to update, and fixtures written by 1.0 are committed with tests that open them. See [docs/migrating-to-v2.md](docs/migrating-to-v2.md).
+- Token formats in tiers (Core, Frameworks, Platforms) in the Export Engine, with a search across all of them, and a deprecation note for GTK 4 CSS and Stylus (still built; removal in 2.1), also grouped in `designhub --help`.
+- Icon Studio export formats in tiers (Core: SVG, React, HTML; Frameworks: Vue, Svelte, Angular, Solid, Qwik, Lit, Astro, Preact, React Native; Platforms: CSS data URI) in the same picker as the Export Engine, with its search, and a group that holds the open format stays open. Format ids, order and file names are unchanged, a test fails for an icon format with no tier (`lib/icons/tiers.ts`), and golden-file snapshots pin every icon export byte for byte.
+- Brand DNA: choose the model for the AI provider, and an OpenAI-compatible provider (a base URL, a model and a key; a local server needs no key) with the destination host shown before the first request. An end-to-end test proves nothing is sent to a model host without a key.
+- Golden-file snapshots for every background generator and look, every social template and mockup (light and dark) and every token format (two token sets), so any change to a drawing or an export shows in review.
+- End-to-end flow tests (brand to export, project export, delete and import, keyboard only, offline) and an axe scan of every studio and tab in light and dark.
+- "More platforms" in the Social Media Studio: twenty core platforms first, the rest behind a disclosure, and a default ZIP pack of the core platforms.
+- Look control for the Concentric, Woven and Zigzag background generators.
+- Accessibility Lab tabs, colors, contrast results and check list in en, es, fr and hi, and `completeAreas` now includes them.
+- Notebook mockup: a portrait hardcover notebook with the logo debossed (a light edge and a pressed copy), the name on the cover, the website at the foot and an elastic band in the secondary color, on a desk, in light and dark. The name and website are shortened to the cover, never clipped.
+- Presentation mockup: a title slide and a content slide in 16:9 on a stage, with slide title, heading and body sizes taken from the live type scale (kept inside a readable range), a headline that wraps to at most three lines and is cut to fit, the call to action as a pill and the presenter from the person and role fields.
+- Trade show booth mockup: a 3 x 3 m booth in one-point perspective (back wall, side walls and floor as polygons toward one vanishing point) with a back wall graphic, a counter with the logo and a pull-up banner in the brand colors, with every line of copy kept inside a flat panel.
+- Delivery van mockup: a van in side view with the livery wrapped around the body through a clip path in the brand gradient, so it follows the roof, windscreen and bonnet, with the logo, name, website and phone number shortened to the flat part of the cargo panel.
+- Instagram highlight cover template (1080 x 1920): the mark and a short label centered in the circle Instagram crops to, with the label cut to 12 characters and then to the circle's width, and the zones outside the circle marked as covered.
+- Grainy gradient background generator: a multi-stop gradient in palette colors (at most five stops, with the seed picking the angle and the stop order) under a fine `feTurbulence` grain blended on top, with grain strength and size controls and no embedded images.
+- Scrim effect in the Effects Lab: a `::after` gradient that darkens the bottom or top of an image, with direction, strength, height and color, a preview with text over the photo backdrop, and a contrast check of the text color against the scrim over a white image that reports both ends and how far into the scrim the text stays at 4.5:1.
+- Card tilt effect in the Effects Lab: a perspective hover tilt and a moving glare as plain CSS with `--tilt-x`, `--tilt-y`, `--glare-x` and `--glare-y` fallbacks, an optional snippet that sets them from the pointer, and no transform or transition under `prefers-reduced-motion`.
+- Export all projects as a ZIP in Brand Projects: one `.designhub.json` per project, named like the folder autosave names them so an unpacked ZIP matches the folder, with unique and safe names, optional version history and the button disabled when there are no projects.
+- Illustration brand book page (after Imagery): line weight, corner style and palette share derived from the brand radius (sharp, soft or round), and three do and three don't examples drawn with the brand colors and radius. It is in the PDF with a bookmark, the website export and the Markdown export, can be switched off, and the contents numbering follows it.
+- One-color print check in the Logo Studio's Variants view: the monochrome mark is rasterized at a printed width and measured for the thinnest solid stroke and the thinnest gap (a morphological opening, in plain arrays), then compared with a 0.25, 0.5 or 1 pt minimum, with the result in millimetres, points and plain words. Corners and tapering points are not reported as thin lines.
+- Guide to adding an export format (`docs/export-formats.md`): the token model, the helpers to reuse (`flatten`, `variable`, `yamlString`, `roleColor`), naming rules, light and dark roles, a worked TOML example whose code is compiled and tested, registration, the tests to write and how the ZIP and the CLI pick a format up.
+- Angular Material theme export (`_theme.scss`): `mat.define-palette` maps for the primary and accent colors with every shade 50 to 900 plus the accent tones A100 to A700 (standing in for the palette's 200, 300, 400 and 500 shades), a contrast map that picks white or black per tone, and a `define-light-theme` and `define-dark-theme` pair.
+- Brand book heading structure check in the Accessibility Lab: every exported brand book page needs exactly one h1, no skipped heading level and no empty heading, read from the generated HTML of the pages the website export uses, with the problems in the Reading tab and the JSON, Markdown and HTML reports.
+- UI preview on the Color Studio export tab: a card, button, link and input drawn from the same `roleColor()` mapping the themed exports use, in light and dark, with the WCAG contrast of text on each surface.
+- Weight comparison strip in the Typography specimen view: one row per static face or variable named instance, labelled with its numeric weight and driven by the sample text.
+- Installed-app troubleshooting in the [troubleshooting guide](docs/troubleshooting.md#the-installed-app): missing install button, `.designhub.json` not opening, share target missing, stale service worker after an update, and resetting the offline cache, with Chrome, Edge and Safari steps where they differ.
+- VS Code color theme export (`brand-color-theme.json`): workbench `colors` for the editor, sidebar and status bar, plus `tokenColors` for comments, strings, keywords, functions and numbers from the semantic roles, with `type` set to `light` or `dark` from the background and every syntax color at least 4.5:1 against it.
+- Windows Terminal export (`scheme.json`): a `schemes` entry with `background`, `foreground`, `cursorColor` and the sixteen ANSI colors, taking hues from the palette when present and from the primary's hue ring otherwise, with foreground on background at least 4.5:1.
+- Monogram logo variant: the first one or two letters of the brand name in the heading font, centered in a circle, for avatars when there is no mark, exported as SVG, PNG (400 and 1024) and PDF in the logo pack.
+- GIMP palette (`.gpl`) import in Color Studio: paste a DesignHub, Inkscape or Krita palette into the existing import dialog to restore the same colors and names.
+- Godot 4 export (`theme.tres`): a `Theme` resource with `Color` constants for the palette and the light and dark semantic roles, as `Color(r, g, b, a)` floats from 0 to 1 rounded to 3 places.
+- Size-adjusted system font fallbacks in the Typography Studio export: a Fallback CSS format with `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` matched to Arial, Times New Roman or Courier New, wired into the CSS / Tailwind / SCSS / React stacks, with [usage notes](docs/typography-fallbacks.md).
+- Unity UI Toolkit export (`theme.uss`): `:root` custom properties for the palette, semantic roles, spacing and radius, with colors as hex or `rgba()` and sizes in `px` so Unity can parse every value.
+- Qt Quick export (`Theme.qml`): a singleton `QtObject` with the palette and the light and dark semantic roles as `readonly property color` entries in `#AARRGGBB` order, plus spacing and radius numbers.
+- Duotone effect in the Effects Lab: an SVG filter that maps photo shadows and highlights to two brand colors (`feColorMatrix` plus `feComponentTransfer`), with strength, a before/after photo preview, and the filter markup in every export format and in `effects.css`.
+- Buy Me a Coffee page cover template (1200 x 400) in the Social Media Studio, with a covered avatar zone and the call to action drawn as a support button.
+- Ghost publication cover template (2000 x 1000) in the Social Media Studio, with the logo, publication name and a description wrapped to three lines.
+
+### Changed
+
+- Performance. The Export Engine builds only the open token format (the list is free; the ZIP and the CLI still build all). The font catalog is an index (7 kB gzipped) plus one file per category, and a page that names one font fetches only that category. Social and mockup templates load their drawing code when chosen (`/social` 377.8 to 368.7 kB and `/mockups` 356.1 to 339.2 kB first load, gzipped), and the preview is drawn a frame behind the inputs. Flow field, topographic, voronoi and circle packing are drawn in a module worker, one drawing per pause. Autosave writes only when the snapshot changed and never overlaps. The service worker installs the shell (36 files, 0.63 MB gzipped, from 244 files and 2.35 MB) and keeps a studio the first time it is shown online. Every snapshot test passes unchanged.
+- The SVG Playground and Icon Studio share one list of framework converters (`lib/svg/converters.ts`).
+- Adding a social or mockup template now also needs a loader and a regenerated list, see [the template guides](docs/mockup-templates.md).
+- The offline promise is narrower and clearer: a studio you opened online works offline, and one you never opened says so instead of failing blank (see [the FAQ](docs/faq.md)).
+- Color Studio: the "Download palette" menu now groups its files by the tool that opens them (Design apps: Sketch, Procreate, Adobe ASE; Open tools: GIMP and Inkscape, Krita, Paint.NET; Documents: Markdown table, PNG strip), adds GIMP and Markdown downloads, and every palette file for a fixed palette is covered by a snapshot test (#424).
+- Brand DNA calls the Anthropic Messages API with `fetch` and local types; `@anthropic-ai/sdk` is no longer a dependency.
+- Rings, arcs and squares, argyle, plaid and checks, and zigzag, chevron and squiggle are three generators with a Look control (33 generators from 39). Saved backgrounds with an old kind open as the same look.
+- `lib/tokens/formats.ts` and `native.ts` are split into one module per format in `lib/tokens/formats/`; the output is unchanged byte for byte.
+- The default social ZIP pack holds the core platforms instead of every template.
+- Fixes found by axe: tinted success and brand badges, names that did not contain their visible text (weight rows, pairs, shades, contrast cells, font options) and the favorite heart no longer sits inside a listbox option.
+- Translate the Effects Lab effect picker (every effect's name and description), the shared color and gradient fields and the focus ring, scrollbar and selection controls in every language (en, es, fr, hi), with the contrast results as `{ratio}` placeholders. A test now keeps the `effects.` messages complete in every language.
+
+### Fixed
+
+## v1.0.0
+
+Released 2026-10-21. The first public release: a complete, local-first design and brand identity toolkit with seventeen studios.
+
+### Added since the first build
+
+- Concentric arcs background generator: nested open rings from one seeded center, with the seed choosing the center, the start angle and the sweep, and density setting how many arcs fit.
+- Link underline effect in the Effects Lab: thickness, offset and color as `text-decoration-*` properties, a hover state that grows the underline with a `background-size` transition, a 4.5:1 contrast badge against the page, a link in the preview, and a `prefers-reduced-motion` rule that removes the transition.
+- Wave lines background generator: parallel sine curves shifted in phase, in palette colors, with the seed choosing amplitude and phase.
+- Motion brand book page: durations derived from one base value (150, 250 and 400 ms), the Enter, Exit and Move easing curves drawn as SVG paths against a straight line, do's and don'ts for animation and a reduced-motion note. It is in the PDF with a bookmark, the website export and the Markdown export, can be switched off, and the contents numbering follows it.
+- Motion check in the Accessibility Lab (a Motion tab, and a section in the JSON, Markdown and HTML reports): reads the CSS each Effects Lab effect exports and lists every effect that animates or runs a transform transition, with whether it has an `@media (prefers-reduced-motion` rule.
+- Button press effect in the Effects Lab: a hover lift and a pressed state as `:hover` and `:active` rules with a transform and shadow change, with lift, press depth, duration, easing, color and radius controls, a real button in the preview, and a `prefers-reduced-motion` rule that removes the transform and the transition.
+- Favicon preview in the Logo Studio's Variants view: the app icon at 16 and 32 px in a light and a dark browser tab, drawn from the same SVG the favicon package exports and updating live with the brand.
+- Rhombus background generator ("tumbling blocks"): a seamless tessellation of diamonds shaded in three tones per cube, with the seed picking each cube's palette color and density setting the cube size.
+- `--watch` (`-w`) for `designhub build`: rebuilds whenever the project file changes, debounced, one line per rebuild, keeps running after an invalid file and exits 0 on Ctrl+C.
+- Notion page cover template (1500 x 600) in the Social Media Studio, with the page icon and title zone kept clear.
+- Medium publication banner template (1500 x 500) in the Social Media Studio, with the logo, name, a tagline shortened to two lines and the links.
+- Social template guide (`docs/social-templates.md`): platform sizes, safe and covered areas, the shared helpers, registration and tests, built around the Notion cover.
+- GTK 4 CSS export (`gtk.css`): libadwaita `@define-color` entries for the accent, window and view colors, with a light block and a dark one inside a `prefers-color-scheme: dark` media query.
+- Tamagui export (`tamagui.config.ts`): `createTokens` for color, space, size and radius with camelCase keys (prefixed when a token prefix is set), plus `light` and `dark` themes from the semantic roles.
+- Radix Themes export (`radix-theme.css`): 12 step `--accent-*` and `--gray-*` scales in `.light, .light-theme` and `.dark, .dark-theme` blocks built from the 50 to 950 shades, and `--radius-factor` from the medium radius.
 - Etsy shop banner template (3360 x 840) in the Social Media Studio, with a covered shop-icon zone and safe-area-aware content.
 
 - Compare original and optimized SVGs in the SVG Playground with an aligned, clipped preview and a keyboard- and touch-operable divider.
@@ -18,7 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Zigzag background generator with seeded palette-colored rows and independent density and amplitude controls.
 - Pinterest board cover template (600 x 600) in the Social Media Studio.
 - Export an icon as a Preact component.
+- Ant Design 5 theme export (`antd-theme.ts`): a `ThemeConfig` with the seed tokens only (`colorPrimary`, `colorBgBase`, `colorTextBase`, `borderRadius`, `fontFamily`), as a light config and a dark one that asks Ant Design for `darkAlgorithm`.
+- Material UI v6 theme export (`theme.ts`): `createTheme` with light and dark color schemes from the semantic roles, a light / main / dark ramp taken from each palette color's own shades, the heading and body fonts from the type scale, and `shape.borderRadius` from the radius scale.
 - Mantine v7 theme export (`theme.ts`): `createTheme` with each palette color as a ten-shade tuple, plus primary color, fonts, headings, radius, spacing and shadows.
+- Vuetify 3 theme export (`vuetify.ts`): a `createVuetify` theme with a light and a dark color set built from the semantic roles, the palette as extra theme colors, and contrast-picked `on-primary` and `on-secondary` labels.
 - WinUI / WPF export (`Theme.xaml`): a `ResourceDictionary` with `Color` and `SolidColorBrush` resources for the palette and Light and Dark `ThemeDictionaries` for the semantic roles.
 - Scrollbar effect in the Effects Lab: thumb, hover and track colors, width and radius as `scrollbar-color` and `scrollbar-width` with a `::-webkit-scrollbar` fallback, a scrolling preview and a 3:1 thumb contrast badge.
 - Flow field background generator: seeded noise-driven curves, one path per palette color, with bounded path counts and sizes.
@@ -31,19 +113,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `designhub` command line (`packages/cli`): `designhub build brand.designhub.json --format css,tailwind-v4 --out tokens/` writes any Export Engine format from an exported project file, deterministically, with no runtime dependencies. The workspace now has a `packages/` folder and the app package is named `designhub-app`.
 - Open `.designhub.json` files from the installed app: a `file_handlers` manifest entry and a share target (answered by the service worker, so nothing is uploaded) lead to an import prompt, translated (en, es, fr, hi), that validates and sanitizes the file like a normal import and never replaces the open project. Browsers without a launch queue see no change.
 - Brand DNA AI provider with your own API key (Anthropic Messages API, `claude-opus-5-5`): the key lives only in IndexedDB and is removed with one click, the exact downscaled images and instructions are shown before the first request, and any failure (bad key, rate limit, network, odd answer) falls back to the on-device result with a note.
+- .NET MAUI export (`Colors.xaml`): a `ResourceDictionary` with `Color` and `SolidColorBrush` resources for the palette and each role in light and dark.
+- Selection effect in the Effects Lab: `::selection` background and text colors with a forced-colors rule, a matching caret color, Tailwind `selection:` guidance and a 4.5:1 contrast badge.
+- Scroll shadow effect in the Effects Lab: edge shadows that show only while there is more to scroll, in pure CSS with `background-attachment: local`, with color, strength, height and box background controls.
+- Plaid background generator: translucent crossing bands in palette colors that repeat seamlessly, seeded, with density setting the repeat size.
+- Circle packing background generator: non-overlapping circles of varied size in palette colors, seeded, with capped circle and attempt counts.
+- Gumroad profile cover template (1280 x 420) in the Social Media Studio, with the avatar's covered zone kept clear.
+- Ko-fi page banner template (1920 x 480) in the Social Media Studio, with a support button from the call to action field.
+- Smartwatch mockup: a watch face with the brand mark, time and activity ring, and a notification from the app, with long names and messages shortened to the display.
+- Social share logo variant (1200 x 630): the lockup centered inside the crop-safe area, scaled down for long names, exported as SVG, PNG (1200 and 2400) and PDF in the logo pack.
+- Data Visualization brand book page: six categorical series colors checked against color blindness (OKLab distance under protanopia, deuteranopia and tritanopia), a sequential and a diverging ramp from the brand, and a sample chart.
+- Paint.NET palette export (`.txt`, one `AARRGGBB` color per line) in the Color Studio download menu, capped at 96 colors with the same notes as the Procreate export.
+- App shortcuts in the web app manifest: the installed app's icon menu opens Colors, Typography, Brand Projects and the Export Engine.
+- `designhub build -` reads the project file from standard input, so the CLI can sit in a pipeline.
+- Text spacing tester in the Accessibility Lab (WCAG 1.4.12): a switch applies line height 1.5, paragraph spacing 2x, letter spacing 0.12em and word spacing 0.16em to the preview and says whether any text is clipped, and the JSON, Markdown and HTML reports list each value against the minimum.
+- Guide to adding a mockup template (`docs/mockup-templates.md`), with a worked example whose code is tested.
+- CLI and CI guide (`docs/cli.md`): running the CLI, its guarantees and exit codes, and GitHub Actions recipes for building tokens, drift checks, auto-commits and monorepos.
 
-### Changed
+### Changed since the first build
 
 - Announce generated and loaded Color Studio palettes to screen readers, including locked swatches kept during generation.
 - Translate the rest of the Typography pairing studio in every language (en, es, fr, hi): the Pair panel, the Heading and Body labels and pickers, the lock and unlock buttons, Swap, Save, Random pair, the pairing suggestion heading, the saved and curated galleries, the pair card labels and the save toast.
 
-### Fixed
+### Fixed since the first build
 
 - Keep Color Studio undo and redo usable after global undo or redo, and reset both histories immediately when opening another project.
-
-## v1.0.0
-
-Released 2026-09-23. The first public release: a complete, local-first design and brand identity toolkit with seventeen studios.
 
 ### Added
 

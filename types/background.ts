@@ -1,5 +1,6 @@
 export type BackgroundKind =
   | "waves"
+  | "wave-lines"
   | "blobs"
   | "mesh"
   | "aurora"
@@ -7,12 +8,9 @@ export type BackgroundKind =
   | "dots"
   | "grid"
   | "isometric"
-  | "rings"
-  | "checks"
   | "low-poly"
   | "bokeh"
   | "confetti"
-  | "chevron"
   | "hexagons"
   | "sunburst"
   | "topographic"
@@ -24,14 +22,16 @@ export type BackgroundKind =
   | "circuit"
   | "halftone"
   | "triangles"
-  | "squiggle"
-  | "squares"
-  | "argyle"
   | "zigzag"
   | "spirograph"
   | "truchet"
   | "memphis"
-  | "flow-field";
+  | "flow-field"
+  | "circle-packing"
+  | "rhombus"
+  | "grain-gradient"
+  | "concentric"
+  | "woven";
 
 /** Halftone gradient shape: forced linear or radial, or picked by the seed. */
 export type HalftoneGradientChoice = "seeded" | "linear" | "radial";
@@ -43,7 +43,13 @@ export type HalftoneGradientChoice = "seeded" | "linear" | "radial";
 export type BackgroundOptions = {
   /** Halftone only. Missing means "seeded". */
   halftoneGradient?: HalftoneGradientChoice;
+  /** Generators with variants only (concentric, woven, zigzag). Missing means the generator's first variant. */
+  variant?: BackgroundVariant;
 };
+
+/** The looks that were separate generators before they were merged into concentric, woven and zigzag. */
+export type BackgroundVariant =
+  "rings" | "arcs" | "squares" | "argyle" | "plaid" | "checks" | "zigzag" | "chevron" | "squiggle";
 
 export type BackgroundSettings = {
   kind: BackgroundKind;
@@ -64,7 +70,24 @@ export type BackgroundSettings = {
   options?: BackgroundOptions;
 };
 
+/** One look inside a generator that has several: the drawing and the native CSS, when it has any. */
+export type BackgroundVariantDefinition = {
+  variant: BackgroundVariant;
+  label: string;
+  description: string;
+  render: (settings: BackgroundSettings) => string;
+  css?: (settings: BackgroundSettings) => string;
+  /** Preferred starting values when the person switches to this variant. */
+  defaults?: Partial<Omit<BackgroundSettings, "kind" | "seed" | "width" | "height" | "options">>;
+};
+
+/** What a generator draws, so the picker can group the generators. */
+export type BackgroundCategory = "flows" | "patterns" | "shapes" | "textures" | "maps";
+
 export type BackgroundDefinition = {
+  category: BackgroundCategory;
+  /** The looks of a generator that has several, in picker order. The first is the default. */
+  variants?: BackgroundVariantDefinition[];
   kind: BackgroundKind;
   label: string;
   description: string;
@@ -74,6 +97,8 @@ export type BackgroundDefinition = {
   css?: (settings: BackgroundSettings) => string;
   /** Needs Paper.js (loaded lazily); renders with a built-in fallback until it's ready. */
   usesPaper?: boolean;
+  /** Does enough work to stall the page while a control moves, so the studio draws it in a worker. */
+  heavy?: boolean;
   /** Preferred starting values when the user switches to this generator. */
   defaults?: Partial<Omit<BackgroundSettings, "kind" | "seed" | "width" | "height" | "options">>;
 };

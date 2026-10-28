@@ -1,33 +1,49 @@
 import { describe, expect, test } from "vitest";
 
 import { contrastRatio, fromHex, parseColor, toHex } from "@/lib/color/color";
+import { generateShades } from "@/lib/color/shades";
 import {
   tokenFormats,
   toAndroidColors,
   toAndroidTheme,
+  toAntTheme,
   toBootstrapVariables,
   toChakraTheme,
   toMantineTheme,
+  toMaterialTheme,
   toCss,
   toCssLightDark,
   toCssProperties,
   toFigmaVariables,
+  toGtkCss,
   toShadcnTheme,
   type FigmaVariablesRequest,
   toJsModule,
   toNuxtUiConfig,
   toNuxtUiColorsCss,
   toPandaPreset,
+  toRadixThemeCss,
   toSassMap,
   toScss,
   toStyledTheme,
+  toTamaguiConfig,
   toStylus,
   toUnoConfig,
+  toUnityUss,
+  toVuetifyTheme,
   toXcodeColorSets,
   toYaml,
   yamlString,
 } from "@/lib/tokens/formats";
-import { toWinUiTheme } from "@/lib/tokens/native";
+import {
+  roleColor,
+  toGodotTheme,
+  toMauiColors,
+  toQtQuickTheme,
+  toVsCodeTheme,
+  toWindowsTerminalScheme,
+  toWinUiTheme,
+} from "@/lib/tokens/native";
 import { xmlError } from "@/lib/test/xml";
 import type { DesignTokens } from "@/types/tokens";
 
@@ -105,17 +121,29 @@ test("the new formats are registered for the Export Engine and the ZIP", () => {
       "_bootstrap-variables.scss",
       "app.config.ts",
       "nuxt-ui-colors.css",
+      "vuetify.ts",
+      "Theme.qml",
+      "theme.tres",
+      "theme.uss",
+      "brand-color-theme.json",
     ]),
   );
   expect(formats.map((format) => format.id)).toEqual(
     expect.arrayContaining([
       "chakra",
       "mantine",
+      "antd",
+      "mui",
+      "vuetify",
       "bootstrap",
       "shadcn",
       "figma-variables",
       "nuxt-ui",
       "nuxt-ui-colors",
+      "qml",
+      "godot",
+      "uss",
+      "vscode",
     ]),
   );
   expect(formats.find((format) => format.id === "shadcn")?.filename).toBe("globals.css");
@@ -316,6 +344,137 @@ describe("Mantine", () => {
     expect(tuple).toHaveLength(10);
     expect(mantine).toContain('primaryColor: "acme-indigo",');
     expect(mantine).not.toContain("oklch(");
+  });
+});
+
+describe("Ant Design", () => {
+  /** The `token` block of one config, so light and dark assertions can't see each other. */
+  const tokenOf = (code: string, name: "lightTheme" | "darkTheme") => {
+    const start = code.indexOf(`export const ${name}: ThemeConfig = {`);
+    return code.slice(start, code.indexOf("};", start));
+  };
+
+  test("maps the semantic roles onto the seed tokens", () => {
+    const antd = toAntTheme(withRoles);
+    expect(antd).toContain('import { theme as antdTheme, type ThemeConfig } from "antd";');
+    const light = tokenOf(antd, "lightTheme");
+    expect(light).toContain(`colorPrimary: "${toHex(roleColor(withRoles, "primary", false)!.value)}",`);
+    expect(light).toContain(`colorBgBase: "${toHex(roleColor(withRoles, "background", false)!.value)}",`);
+    expect(light).toContain(`colorTextBase: "${toHex(roleColor(withRoles, "foreground", false)!.value)}",`);
+    expect(antd).not.toContain("oklch(");
+  });
+
+  test("the dark config asks Ant Design for the dark algorithm and reads roleColor in dark mode", () => {
+    const antd = toAntTheme(withRoles);
+    const dark = tokenOf(antd, "darkTheme");
+    expect(dark).toContain("algorithm: antdTheme.darkAlgorithm,");
+    expect(dark).toContain(`colorPrimary: "${toHex(roleColor(withRoles, "primary", true)!.value)}",`);
+    expect(dark).toContain(`colorBgBase: "${toHex(roleColor(withRoles, "background", true)!.value)}",`);
+    expect(tokenOf(antd, "lightTheme")).not.toContain("algorithm:");
+  });
+
+  test("keeps the radius and the body font, and still emits a valid config without them", () => {
+    const typedConfig = toAntTheme(typed());
+    expect(typedConfig).toContain("borderRadius: 12,");
+    expect(typedConfig).toContain('fontFamily: "\\"Lora\\", ui-serif, Georgia, serif",');
+    const bare = toAntTheme({ ...tokens(), colors: [], semantic: [], radius: [], typography: null });
+    expect(bare).toContain("export const lightTheme: ThemeConfig = { token: {} };");
+    expect(bare).toContain("algorithm: antdTheme.darkAlgorithm,");
+  });
+});
+
+describe("Material UI", () => {
+  /** The `palette` block of one color scheme, so light and dark assertions can't see each other. */
+  const scheme = (code: string, name: "light" | "dark") => {
+    const start = code.indexOf(`${name}: {`);
+    return code.slice(start, code.indexOf("},\n  },", start));
+  };
+
+  test("builds a createTheme with a light and a dark color scheme from the semantic roles", () => {
+    const mui = toMaterialTheme(withRoles);
+    expect(mui).toContain('import { createTheme } from "@mui/material/styles";');
+    expect(mui).toContain("colorSchemes: {");
+    const light = scheme(mui, "light");
+    expect(light).toContain('main: "#6366f1",');
+    // The lighter and darker stops come from the palette's own shades, not from a fixed percentage.
+    expect(light).toContain('light: "#a5b4fc",');
+    expect(light).toContain('default: "#ffffff",');
+    expect(light).toContain('text: { primary: "#0f172a" }');
+    // Indigo 500 takes black label text more legibly than white, so contrastText follows the contrast.
+    expect(light).toContain('contrastText: "#000000",');
+    expect(mui).not.toContain("oklch(");
+  });
+
+  test("the dark scheme reads roleColor in dark mode and lifts paper off the page", () => {
+    const mui = toMaterialTheme(withRoles);
+    const dark = scheme(mui, "dark");
+    expect(dark).toContain(`main: "${toHex(roleColor(withRoles, "primary", true)!.value)}",`);
+    expect(dark).not.toContain('main: "#6366f1",');
+    const value = (block: string, key: string) => block.match(new RegExp(`${key}: "(#[0-9a-f]{6})"`))?.[1];
+    expect(value(dark, "paper")).toBeDefined();
+    expect(value(dark, "paper")).not.toBe(value(dark, "default"));
+  });
+
+  test("puts the heading font on the headings and the body font everywhere else", () => {
+    const mui = toMaterialTheme(typed());
+    expect(mui).toContain('fontFamily: "\\"Lora\\", ui-serif, Georgia, serif",');
+    expect(mui).toContain('fontFamily: "\\"Inter\\", ui-sans-serif, system-ui, sans-serif",');
+    expect(mui).toContain("fontWeight: 700,");
+    expect(mui).toContain("body1: { fontWeight: 400 },");
+    expect(mui).toContain("shape: { borderRadius: 12 },");
+  });
+
+  test("still returns a valid createTheme call without typography, radius or a palette", () => {
+    const bare = toMaterialTheme({ ...tokens(), colors: [], semantic: [], radius: [] });
+    expect(bare).toContain("createTheme({});");
+    expect(bare).not.toContain("colorSchemes");
+    expect(bare).not.toContain("typography");
+    expect(bare).not.toContain("shape");
+  });
+});
+
+describe("Vuetify", () => {
+  /** The color block of one theme set, so light and dark assertions can't see each other. */
+  const setOf = (code: string, theme: "light" | "dark") => {
+    const start = code.indexOf(`const ${theme}: ThemeDefinition`);
+    return code.slice(start, code.indexOf("};", start));
+  };
+
+  test("builds a createVuetify theme with a light and a dark set from the semantic roles", () => {
+    const vuetify = toVuetifyTheme(withRoles);
+    expect(vuetify).toContain('import { createVuetify, type ThemeDefinition } from "vuetify";');
+    expect(vuetify).toContain('defaultTheme: "light",');
+    expect(vuetify).toContain("themes: { light, dark },");
+    const light = setOf(vuetify, "light");
+    expect(light).toContain("dark: false,");
+    expect(light).toContain('background: "#ffffff",');
+    expect(light).toContain('primary: "#6366f1",');
+    expect(light).toContain('secondary: "#6366f1",');
+    // Indigo 500 takes black label text more legibly than white, so the slot follows the contrast.
+    expect(light).toContain('"on-primary": "#000000",');
+    expect(vuetify).not.toContain("oklch(");
+  });
+
+  test("the dark set matches roleColor in both modes and lifts surface off the page", () => {
+    const vuetify = toVuetifyTheme(withRoles);
+    const light = setOf(vuetify, "light");
+    const dark = setOf(vuetify, "dark");
+    expect(dark).toContain("dark: true,");
+    expect(dark).toContain(`primary: "${toHex(roleColor(withRoles, "primary", true)!.value)}",`);
+    expect(dark).toContain(`background: "${toHex(roleColor(withRoles, "background", true)!.value)}",`);
+    expect(dark).not.toContain('background: "#ffffff",');
+    const value = (block: string, slot: string) => block.match(new RegExp(`${slot}: "(#[0-9a-f]{6})"`))?.[1];
+    expect(value(light, "surface")).toBe(value(light, "background"));
+    expect(value(dark, "surface")).toBeDefined();
+    expect(value(dark, "surface")).not.toBe(value(dark, "background"));
+  });
+
+  test("prefixes palette colors and leaves the slots Vuetify reads unprefixed", () => {
+    const vuetify = toVuetifyTheme({ ...withRoles, meta: { ...withRoles.meta, prefix: "acme" } });
+    expect(vuetify).toContain('"acme-indigo": "#6366f1",');
+    expect(vuetify).toContain('"acme-slate": "#0f172a",');
+    expect(vuetify).not.toContain('"acme-primary"');
+    expect(vuetify).toContain('primary: "#6366f1",');
   });
 });
 
@@ -891,6 +1050,277 @@ describe("WinUI / WPF", () => {
   });
 });
 
+describe(".NET MAUI", () => {
+  const maui = (): DesignTokens => ({
+    ...tokens(),
+    colors: [
+      {
+        name: "indigo",
+        value: fromHex("#6366f1"),
+        shades: [{ step: 300, value: fromHex("#a5b4fc") }],
+      },
+      { name: "indigo-2", value: fromHex("#0f172a"), shades: [{ step: 50, value: fromHex("#f1f6ff") }] },
+    ],
+    semantic: [
+      { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+      { name: "background", ref: "white", value: fromHex("#ffffff") },
+    ],
+  });
+
+  test("uses the MAUI namespace and writes ARGB colors with matching brushes", () => {
+    const xaml = toMauiColors(maui());
+    expect(xaml).toContain('xmlns="http://schemas.microsoft.com/dotnet/2021/maui"');
+    expect(xaml).toContain('<Color x:Key="AcmeLabsIndigoColor">#FF6366F1</Color>');
+    expect(xaml).toContain('<SolidColorBrush x:Key="AcmeLabsIndigo_300Brush" Color="#FFA5B4FC" />');
+  });
+
+  test("writes each role for light and dark, the dark one lifted to shade 300", () => {
+    const xaml = toMauiColors(maui());
+    expect(xaml).toContain('<Color x:Key="AcmeLabsPrimaryRoleColor">#FF6366F1</Color>');
+    expect(xaml).toContain('<Color x:Key="AcmeLabsPrimaryRoleDarkColor">#FFA5B4FC</Color>');
+  });
+
+  test("keys are unique and the XML is well-formed, even for an awkward brand name", () => {
+    const xaml = toMauiColors({ ...maui(), meta: { ...maui().meta, name: "A -- B & <C>" } });
+    expect(xmlError(xaml)).toBeNull();
+    const keys = [...xaml.matchAll(/x:Key="(\w+)"/g)].map((match) => match[1]);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test("is registered in the Export Engine", () => {
+    expect(tokenFormats(maui()).find((format) => format.id === "maui")?.filename).toBe("Colors.xaml");
+  });
+});
+
+describe("Qt Quick", () => {
+  test("is registered in the Export Engine", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "qml");
+    expect(format?.filename).toBe("Theme.qml");
+    expect(format?.language).toBe("qml");
+  });
+
+  test("writes light and dark roles and spacing as QML properties", () => {
+    const code = toQtQuickTheme(tokens());
+    expect(code).toContain("pragma Singleton");
+    expect(code).toContain('readonly property color lightPrimary: "#FF6366F1"');
+    expect(code).toContain("readonly property color darkPrimary:");
+    expect(code).toContain("readonly property real spacing4: 16");
+  });
+});
+
+describe("Godot", () => {
+  test("is registered in the Export Engine", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "godot");
+    expect(format?.filename).toBe("theme.tres");
+    expect(format?.language).toBe("text");
+  });
+
+  test("starts with a Theme resource header and covers one role", () => {
+    const code = toGodotTheme(tokens());
+    expect(code.startsWith('[gd_resource type="Theme"')).toBe(true);
+    expect(code).toContain("AcmeLabs/colors/light_primary = Color(");
+    expect(code).toMatch(/light_primary = Color\([0-9.]+, [0-9.]+, [0-9.]+, [0-9.]+\)/);
+  });
+});
+
+describe("Unity USS", () => {
+  test("is registered in the Export Engine", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "uss");
+    expect(format?.filename).toBe("theme.uss");
+    expect(format?.language).toBe("css");
+  });
+
+  test("writes a color and a spacing token as hex and px", () => {
+    const code = toUnityUss(tokens());
+    expect(code).toContain(":root {");
+    expect(code).toContain("--color-indigo: #6366f1;");
+    expect(code).toContain("--spacing-4: 16px;");
+  });
+
+  test("never emits functions Unity cannot parse", () => {
+    const themed: DesignTokens = {
+      ...tokens(),
+      meta: { ...tokens().meta, colorFormat: "oklch" },
+      colors: [
+        {
+          name: "indigo",
+          value: fromHex("#6366f1"),
+          shades: [{ step: 250, value: { ...fromHex("#cdd9f3"), alpha: 0.5 } }],
+        },
+      ],
+    };
+    const code = toUnityUss(themed);
+    const block = code.match(/:root \{([\s\S]*)\}\s*$/)?.[1] ?? "";
+    const values = [...block.matchAll(/^\s*--[^:]+:\s*([^;]+);/gm)].map((match) => match[1]!.trim());
+    expect(values.length).toBeGreaterThan(0);
+    values.forEach((value) => {
+      expect(value).not.toMatch(/oklch\s*\(/i);
+      expect(value).not.toMatch(/color-mix\s*\(/i);
+      expect(value).not.toMatch(/clamp\s*\(/i);
+      expect(value).not.toMatch(/\d+(?:\.\d+)?rem\b/);
+      expect(value).toMatch(/^(?:#[0-9a-f]{3,8}|rgba?\([^)]+\)|var\([^)]+\)|0|\d+(?:\.\d+)?px)$/i);
+    });
+    expect(code).toContain("rgba(");
+  });
+});
+
+describe("Windows Terminal", () => {
+  const ansiKeys = [
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "purple",
+    "cyan",
+    "white",
+    "brightBlack",
+    "brightRed",
+    "brightGreen",
+    "brightYellow",
+    "brightBlue",
+    "brightPurple",
+    "brightCyan",
+    "brightWhite",
+  ] as const;
+
+  test("is registered in the Export Engine", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "windows-terminal");
+    expect(format?.filename).toBe("scheme.json");
+    expect(format?.language).toBe("json");
+  });
+
+  test("writes a schemes entry with all sixteen ANSI keys", () => {
+    const json = JSON.parse(toWindowsTerminalScheme(tokens()));
+    expect(json.schemes).toHaveLength(1);
+    const scheme = json.schemes[0] as Record<string, string>;
+    expect(scheme.name).toBe("Acme Labs");
+    expect(scheme.background).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(scheme.foreground).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(scheme.cursorColor).toMatch(/^#[0-9a-f]{6}$/i);
+    for (const key of ansiKeys) {
+      expect(scheme[key]).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  test("keeps foreground on background at least 4.5:1", () => {
+    const scheme = JSON.parse(toWindowsTerminalScheme(tokens())).schemes[0] as {
+      background: string;
+      foreground: string;
+    };
+    const ratio = contrastRatio(fromHex(scheme.foreground), fromHex(scheme.background));
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("raises a weak foreground so normal text still reaches 4.5:1", () => {
+    const weak = tokens();
+    weak.semantic = [
+      { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+      { name: "background", ref: "indigo-2", value: fromHex("#0f172a") },
+      { name: "foreground", ref: "indigo", value: fromHex("#334155") },
+    ];
+    const scheme = JSON.parse(toWindowsTerminalScheme(weak)).schemes[0] as {
+      background: string;
+      foreground: string;
+    };
+    expect(contrastRatio(fromHex(scheme.foreground), fromHex(scheme.background))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("VS Code", () => {
+  const themed = (): DesignTokens => ({
+    ...tokens(),
+    colors: [
+      {
+        name: "indigo",
+        value: fromHex("#6366f1"),
+        shades: [
+          { step: 200, value: fromHex("#c7d2fe") },
+          { step: 300, value: fromHex("#a5b4fc") },
+        ],
+      },
+      { name: "amber", value: fromHex("#f59e0b"), shades: [{ step: 300, value: fromHex("#fcd34d") }] },
+      { name: "slate", value: fromHex("#0f172a"), shades: [] },
+    ],
+    semantic: [
+      { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+      { name: "accent", ref: "amber", value: fromHex("#f59e0b") },
+      { name: "foreground", ref: "slate", value: fromHex("#0f172a") },
+      { name: "background", ref: "white", value: fromHex("#ffffff") },
+    ],
+  });
+
+  test("is registered in the Export Engine", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "vscode");
+    expect(format?.filename).toBe("brand-color-theme.json");
+    expect(format?.language).toBe("json");
+  });
+
+  test("sets type from the background and covers editor, sidebar and status bar", () => {
+    const theme = JSON.parse(toVsCodeTheme(themed())) as {
+      name: string;
+      type: string;
+      colors: Record<string, string>;
+      tokenColors: { scope: string[]; settings: { foreground: string } }[];
+    };
+    expect(theme.name).toBe("Acme Labs");
+    expect(theme.type).toBe("light");
+    expect(theme.colors["editor.background"]).toBe("#ffffff");
+    expect(theme.colors["editor.foreground"]).toBe("#0f172a");
+    expect(theme.colors["sideBar.background"]).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(theme.colors["sideBar.foreground"]).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(theme.colors["statusBar.background"]).toBe("#6366f1");
+    expect(theme.colors["statusBar.foreground"]).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  test("tokenColors covers comments, strings, keywords, functions and numbers", () => {
+    const theme = JSON.parse(toVsCodeTheme(themed())) as {
+      tokenColors: { scope: string[]; settings: { foreground: string } }[];
+    };
+    const joined = theme.tokenColors.map((rule) => rule.scope.join(" ")).join(" | ");
+    expect(joined).toMatch(/comment/);
+    expect(joined).toMatch(/string/);
+    expect(joined).toMatch(/keyword/);
+    expect(joined).toMatch(/function/);
+    expect(joined).toMatch(/numeric|number/);
+  });
+
+  test("each token color meets 4.5:1 against the editor background", () => {
+    const theme = JSON.parse(toVsCodeTheme(themed())) as {
+      colors: Record<string, string>;
+      tokenColors: { settings: { foreground: string } }[];
+    };
+    const background = fromHex(theme.colors["editor.background"]!);
+    expect(theme.tokenColors.length).toBeGreaterThanOrEqual(5);
+    theme.tokenColors.forEach((rule) => {
+      const foreground = fromHex(rule.settings.foreground);
+      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  test("chooses type dark when the background is dark", () => {
+    const darkBg: DesignTokens = {
+      ...themed(),
+      semantic: [
+        { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+        { name: "accent", ref: "amber", value: fromHex("#f59e0b") },
+        { name: "foreground", ref: "white", value: fromHex("#f8fafc") },
+        { name: "background", ref: "slate", value: fromHex("#0f172a") },
+      ],
+    };
+    const theme = JSON.parse(toVsCodeTheme(darkBg)) as {
+      type: string;
+      colors: Record<string, string>;
+      tokenColors: { settings: { foreground: string } }[];
+    };
+    expect(theme.type).toBe("dark");
+    const background = fromHex(theme.colors["editor.background"]!);
+    theme.tokenColors.forEach((rule) => {
+      expect(contrastRatio(fromHex(rule.settings.foreground), background)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+});
+
 describe("Nuxt UI v3", () => {
   const nuxtTokens = (): DesignTokens => ({
     ...tokens(),
@@ -945,6 +1375,195 @@ describe("Nuxt UI v3", () => {
     expect(css).toContain("--ui-color-primary-500: #6366f1;");
     expect(tokenFormats(nuxtTokens()).find((format) => format.id === "nuxt-ui-colors")?.filename).toBe(
       "nuxt-ui-colors.css",
+    );
+  });
+});
+
+describe("GTK, Tamagui and Radix Themes exports", () => {
+  const brandTokens = (prefix = ""): DesignTokens => {
+    const color = (name: string, hex: string) => {
+      const value = fromHex(hex);
+      return { name, value, shades: generateShades(value).map((shade) => ({ step: shade.step, value: shade.color })) };
+    };
+    return {
+      meta: { name: "Acme Labs", prefix, generatedAt: "2026-01-01", colorFormat: "hex" },
+      colors: [color("indigo", "#6366f1"), color("slate", "#64748b")],
+      semantic: [
+        { name: "primary", ref: "indigo", value: fromHex("#6366f1") },
+        { name: "background", ref: "slate", value: fromHex("#ffffff") },
+        { name: "foreground", ref: "slate", value: fromHex("#0f172a") },
+      ],
+      gradient: null,
+      typography: null,
+      effects: [],
+      spacing: [
+        { name: "0.5", px: 2 },
+        { name: "4", px: 16 },
+      ],
+      radius: [
+        { name: "md", px: 9 },
+        { name: "full", px: 9999 },
+      ],
+    };
+  };
+
+  test("registers all three formats for the Export Engine and the ZIP", () => {
+    const formats = tokenFormats(brandTokens());
+    expect(formats.find((format) => format.id === "gtk")?.filename).toBe("gtk.css");
+    expect(formats.find((format) => format.id === "tamagui")?.filename).toBe("tamagui.config.ts");
+    expect(formats.find((format) => format.id === "radix-themes")?.filename).toBe("radix-theme.css");
+  });
+
+  describe("GTK 4 CSS", () => {
+    test("writes accent_bg_color in light and dark", () => {
+      const css = toGtkCss(brandTokens());
+      const [light, dark] = css.split("@media (prefers-color-scheme: dark)");
+      expect(light).toContain("@define-color accent_bg_color #6366f1;");
+      expect(dark).toContain("@define-color accent_bg_color #b1bdff;");
+    });
+
+    test("every @define-color is well-formed", () => {
+      const css = toGtkCss(brandTokens());
+      const lines = css.split("\n").filter((line) => line.includes("@define-color"));
+      expect(lines).toHaveLength(14);
+      lines.forEach((line) => expect(line).toMatch(/^\s*@define-color [a-z_]+ #[0-9a-f]{6};$/));
+      ["accent_bg_color", "window_bg_color", "view_bg_color", "window_fg_color"].forEach((name) =>
+        expect(css).toContain(`@define-color ${name} `),
+      );
+    });
+  });
+
+  describe("Tamagui", () => {
+    test("exports color, space, size and radius tokens with valid keys", () => {
+      const config = toTamaguiConfig(brandTokens());
+      expect(config).toContain('import { createTokens } from "tamagui";');
+      expect(config).toContain('indigo500: "#757bff"');
+      expect(config).toContain("space: {");
+      expect(config).toContain('"0_5": 2');
+      expect(config).toContain("4: 16");
+      expect(config).toContain("size: {");
+      expect(config).toContain("full: 9999");
+    });
+
+    test("light and dark themes carry the semantic roles", () => {
+      const config = toTamaguiConfig(brandTokens());
+      expect(config).toContain('export const light = { primary: "#6366f1", background: "#ffffff"');
+      expect(config).toContain('export const dark = { primary: "#b1bdff", background: "#0f172a"');
+    });
+
+    test("prefixes token keys with the token prefix", () => {
+      const config = toTamaguiConfig(brandTokens("acme"));
+      expect(config).toContain("acmeIndigo500:");
+      expect(config).toContain("acme4: 16");
+    });
+  });
+
+  describe("Radix Themes", () => {
+    const blocks = (css: string) => {
+      const [light, dark] = [".light, .light-theme {", ".dark, .dark-theme {"].map((selector) => {
+        const start = css.indexOf(selector);
+        return css.slice(start, css.indexOf("}", start));
+      });
+      return { light, dark };
+    };
+
+    test("has a light and a dark block", () => {
+      const css = toRadixThemeCss(brandTokens());
+      expect(css).toContain(".light, .light-theme {");
+      expect(css).toContain(".dark, .dark-theme {");
+    });
+
+    test("the accent and gray scales have 12 steps in each block", () => {
+      const { light, dark } = blocks(toRadixThemeCss(brandTokens()));
+      [light, dark].forEach((block) => {
+        ["accent", "gray"].forEach((scale) => {
+          const steps = [...block.matchAll(new RegExp(`--${scale}-([0-9]+): #[0-9a-f]{6};`, "g"))].map((m) => m[1]);
+          expect(steps).toEqual(Array.from({ length: 12 }, (_, index) => String(index + 1)));
+        });
+      });
+    });
+
+    test("step 9 is the primary color and the steps run from background to text", () => {
+      const css = toRadixThemeCss(brandTokens());
+      const { light, dark } = blocks(css);
+      expect(light).toContain("--accent-9: #6366f1;");
+      expect(dark).toContain("--accent-9: #6366f1;");
+      const lightness = (block: string, step: number) => {
+        const hex = new RegExp(`--accent-${step}: (#[0-9a-f]{6});`).exec(block)?.[1] ?? "";
+        return parseColor(hex)?.l ?? NaN;
+      };
+      expect(lightness(light, 1)).toBeGreaterThan(lightness(light, 9));
+      expect(lightness(light, 12)).toBeLessThan(lightness(light, 9));
+      expect(lightness(dark, 1)).toBeLessThan(lightness(dark, 9));
+      expect(lightness(dark, 12)).toBeGreaterThan(lightness(dark, 9));
+    });
+
+    test("derives --radius-factor from the medium radius", () => {
+      expect(toRadixThemeCss(brandTokens())).toContain("--radius-factor: 1.5;");
+    });
+  });
+});
+
+describe("Angular Material theme", () => {
+  const code = () => tokenFormats(tokens()).find((format) => format.id === "angular-material")!.code;
+
+  test("registers _theme.scss for the Export Engine, the ZIP and designhub build", () => {
+    const format = tokenFormats(tokens()).find((item) => item.id === "angular-material");
+    expect(format?.label).toBe("Angular Material");
+    expect(format?.filename).toBe("_theme.scss");
+    expect(format?.language).toBe("scss");
+  });
+
+  test("the palettes carry the 50 to 900 keys and the A100 to A700 accent tones", () => {
+    const theme = code();
+    expect(theme).toContain('@use "@angular/material" as mat;');
+    for (const palette of ["$acme-labs-primary", "$acme-labs-accent"]) {
+      expect(theme).toContain(`${palette}: mat.define-palette((`);
+    }
+    for (const key of [
+      "50:",
+      "100:",
+      "200:",
+      "300:",
+      "400:",
+      "500:",
+      "600:",
+      "700:",
+      "800:",
+      "900:",
+      "A100:",
+      "A200:",
+      "A400:",
+      "A700:",
+    ]) {
+      expect(theme).toContain(`    ${key} `);
+    }
+    // the fixture's only indigo shade (250, #cdd9f3) is the nearest stand-in for every step
+    expect(theme).toContain("50: #cdd9f3,");
+    expect(theme).toContain("A700: #cdd9f3,");
+  });
+
+  test("the contrast map picks the tone that reads on each key", () => {
+    const theme = code();
+    // #cdd9f3 is light, so its contrast tone is black
+    expect(theme).toContain("contrast: (\n    50: #000000,");
+    expect(theme).toContain("A100: #000000,");
+    // with a dark shade in the palette, its contrast tone is white
+    const dark = tokens();
+    dark.colors[0]!.shades = [{ step: 500, value: fromHex("#0f172a") }];
+    const darkTheme = tokenFormats(dark).find((item) => item.id === "angular-material")!.code;
+    expect(darkTheme).toContain("500: #0f172a,");
+    expect(darkTheme).toContain("    500: #ffffff,");
+    expect(darkTheme).not.toContain("#000000");
+  });
+
+  test("defines a light and a dark theme over the same palettes", () => {
+    const theme = code();
+    expect(theme).toContain(
+      "$acme-labs-theme: mat.define-light-theme((\n  color: (primary: $acme-labs-primary, accent: $acme-labs-accent),\n));",
+    );
+    expect(theme).toContain(
+      "$acme-labs-dark-theme: mat.define-dark-theme((\n  color: (primary: $acme-labs-primary, accent: $acme-labs-accent),\n));",
     );
   });
 });

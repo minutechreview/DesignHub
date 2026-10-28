@@ -29,20 +29,21 @@ The app runs at [http://localhost:3000](http://localhost:3000). There is no back
 
 ### pnpm commands
 
-| Command              | What it does                                                        |
-| -------------------- | ------------------------------------------------------------------- |
-| `pnpm dev`           | Start the dev server with hot reload                                |
-| `pnpm build`         | Production build (must pass before merging)                         |
-| `pnpm start`         | Serve the production build locally                                  |
-| `pnpm lint`          | ESLint (Next.js + TypeScript rules)                                 |
-| `pnpm typecheck`     | `tsc --noEmit` in strict mode                                       |
-| `pnpm test`          | Unit tests with Vitest (`lib/**` and `packages/*/src/**`)           |
-| `pnpm test:e2e`      | Playwright smoke tests against the production build (see below)     |
-| `pnpm format`        | Format all files with Prettier                                      |
-| `pnpm format:check`  | Verify formatting without writing                                   |
-| `pnpm fonts:catalog` | Regenerate `lib/typography/catalog.json` from Google Fonts metadata |
-| `pnpm check:dashes`  | Fail if any file contains an em dash (also runs in CI)              |
-| `pnpm bundle:size`   | Report each route's first-load JS after a build (see below)         |
+| Command              | What it does                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm dev`           | Start the dev server with hot reload                                                |
+| `pnpm build`         | Production build (must pass before merging)                                         |
+| `pnpm start`         | Serve the production build locally                                                  |
+| `pnpm lint`          | ESLint (Next.js + TypeScript rules)                                                 |
+| `pnpm typecheck`     | `tsc --noEmit` in strict mode                                                       |
+| `pnpm test`          | Unit tests with Vitest (`lib/**` and `packages/*/src/**`)                           |
+| `pnpm test:e2e`      | Playwright tests against the production build: routes, flows, axe (see below)       |
+| `pnpm format`        | Format all files with Prettier                                                      |
+| `pnpm format:check`  | Verify formatting without writing                                                   |
+| `pnpm fonts:catalog` | Regenerate the font catalog (`catalog-index.json` and `catalog/`) from Google Fonts |
+| `pnpm check:unused`  | Fail on unused files, exports and dependencies (knip, also in CI)                   |
+| `pnpm check:dashes`  | Fail if any file contains an em dash (also runs in CI)                              |
+| `pnpm bundle:size`   | Report each route's first-load JS after a build (see below)                         |
 
 Before pushing, run the same checks as CI:
 
@@ -91,6 +92,12 @@ git switch my-branch && pnpm build && pnpm bundle:size --base bundle-size-main.j
 ```
 
 `--threshold <percent>` changes the limit and `--dir <path>` measures another checkout's `.next` folder. `bundle-size*.json` files are gitignored.
+
+Every route also has an absolute budget in `bundle-budget.json` (gzipped kB, a little above the size on `main`), and `pnpm bundle:size` fails when a route is over it. Raise a limit only in a reviewed change, with the reason in the pull request. A change that makes a route smaller is a good time to lower its limit.
+
+### Unused code
+
+`pnpm check:unused` runs [knip](https://knip.dev) and fails on a file, an export or a dependency nothing uses. Delete it, or, if it is used in a way knip cannot see, add it to `knip.json` with the reason in the pull request. `components/ui/**` (the shadcn primitives) and the few dependencies the build tools load by name (`tw-animate-css`, `tailwindcss`, `eslint-config-next`) are the existing exceptions.
 
 ## Branch naming
 
@@ -186,32 +193,35 @@ Write comments only when they add information the code can't express - the _why_
 
 ## The command line (`packages/cli`)
 
-`packages/cli` is a pnpm workspace package (named `designhub`; the app itself is `designhub-app`). It reads an exported `.designhub.json` file and writes Export Engine formats to a folder, importing `lib/tokens` and `lib/projects` from the app instead of copying them, so a new export format shows up in the CLI with no CLI change. Build it with `pnpm --filter designhub build` (output in `packages/cli/dist`, gitignored); its tests live in `packages/cli/src` and run with `pnpm test`, and CI builds it and runs `--help`. Keep it free of runtime dependencies and its output deterministic.
+`packages/cli` is a pnpm workspace package (named `designhub`; the app itself is `designhub-app`). It reads an exported `.designhub.json` file and writes Export Engine formats to a folder, importing `lib/tokens` and `lib/projects` from the app instead of copying them, so a new export format shows up in the CLI with no CLI change. Build it with `pnpm --filter designhub build` (output in `packages/cli/dist`, gitignored); its tests live in `packages/cli/src` and run with `pnpm test`, and CI builds it and runs `--help`. Keep it free of runtime dependencies and its output deterministic. [docs/cli.md](docs/cli.md) documents it for users, with CI recipes; update it when a flag or an exit code changes.
 
 ## Adding a new export format
 
-1. Write a pure generator in `lib/tokens/formats.ts` that takes `DesignTokens` and returns a string.
-2. Register it in `tokenFormats()` with an `id`, `label`, `filename` and `language`.
+1. Add a module `lib/tokens/formats/<id>.ts` with a pure generator that takes `DesignTokens` and returns a string, and a `defineFormat({ id, label, filename, language, generate })` entry.
+2. Add the entry to `tokenFormatDefinitions` in `lib/tokens/formats.ts`, and give the id a tier (and a deprecation note, if any) in `lib/tokens/tiers.ts`.
 3. Add a test in `lib/tokens/formats.test.ts` (use `lib/test/xml.ts` for XML formats). The CLI and the all-formats ZIP pick the format up automatically.
 4. Verify the output is valid by pasting it into a real project.
+
+Every format is also pinned byte for byte in `lib/tokens/__snapshots__`: after adding one, run `pnpm vitest run lib/tokens -u` and read the new files. The full walkthrough, with a worked example, the naming helpers, light and dark roles and the tests, is in [docs/export-formats.md](docs/export-formats.md).
 
 ## Adding data (palettes, icons, fonts, presets)
 
 A lot of DesignHub is curated data, and adding to it is a great first contribution. Keep each entry high quality rather than adding many.
 
-| Data                 | File                           | Notes                                                                                               |
-| -------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Palette presets      | `lib/color/presets.ts`         | Five 6-digit hex colors, a unique name and one or two tags from `paletteTags`.                      |
-| Icon topics          | `lib/icons/topics.ts`          | `prefix:name` ids. Check each one exists: `https://api.iconify.design/<prefix>.json?icons=<names>`. |
-| Font pairings        | `lib/typography/pairing.ts`    | Both families must be in `lib/typography/catalog.json`. Add a short note on the mood.               |
-| Font catalog         | `lib/typography/catalog.json`  | Generated. Run `pnpm fonts:catalog [limit]` (default 1,000) instead of editing it by hand.          |
-| Shadow presets       | `lib/effects/shadow.ts`        | Build layers with `createLayer` or `smoothShadow`. They also appear in Brand Studio.                |
-| Social banner styles | `lib/social/templates/github/` | See "Mockup and social template guidelines" above.                                                  |
+| Data                 | File                                            | Notes                                                                                                                                    |
+| -------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Palette presets      | `lib/color/presets.ts`                          | Five 6-digit hex colors, a unique name and one or two tags from `paletteTags`.                                                           |
+| Icon topics          | `lib/icons/topics.ts`                           | `prefix:name` ids. Check each one exists: `https://api.iconify.design/<prefix>.json?icons=<names>`.                                      |
+| Font pairings        | `lib/typography/pairing.ts`                     | Both families must be in the font catalog (`lib/typography/catalog/`). Add a short note on the mood.                                     |
+| Font catalog         | `lib/typography/catalog-index.json`, `catalog/` | Generated: an index and one details file per category. Run `pnpm fonts:catalog [limit]` (default 1,000) instead of editing them by hand. |
+| Shadow presets       | `lib/effects/shadow.ts`                         | Build layers with `createLayer` or `smoothShadow`. They also appear in Brand Studio.                                                     |
+| Social banner styles | `lib/social/templates/github/`                  | See "Mockup and social template guidelines" above.                                                                                       |
 
 ## Adding a background generator
 
 Background generators live in `lib/background/generators/` and are pure functions of `BackgroundSettings`.
 
+0. Several looks that share the same controls are one generator with variants (`backgroundFamily` in `lib/background/family.ts`, as Concentric, Woven and Zigzag do); a removed kind needs an alias in `lib/background/aliases.ts` so saved backgrounds still open.
 1. Create `lib/background/generators/<name>.ts` exporting a `BackgroundDefinition` (`kind`, `label`, `description`, `render`, optional `css` and `defaults`), and add the kind to `BackgroundKind` in `types/background.ts`.
 2. **Be deterministic.** Take all randomness from `createRandom(settings.seed)`, never `Math.random()`. The same seed must always draw the same background.
 3. Map the shared controls consistently: `density` → how much (layers, points, spacing), `scale` → how big, `colors` → foreground palette, `background` → canvas color.
@@ -267,6 +277,8 @@ Translation changes should preserve the existing message keys and placeholders. 
 
 ## Mockup and social template guidelines
 
+For a full walkthrough of a mockup template, see [docs/mockup-templates.md](docs/mockup-templates.md). Social templates have their own guide: [docs/social-templates.md](docs/social-templates.md).
+
 Mockups (`lib/mockups/templates/`), social assets (`lib/social/templates/`) and guideline pages (`lib/guidelines/pages/`) are pure functions from a drawing context to an SVG string.
 
 1. Take every color, font, radius and logo from the context (`ctx.brand`, `ctx.surface`). Never hard-code brand values; neutral device colors (bezels, stands) are fine.
@@ -274,7 +286,7 @@ Mockups (`lib/mockups/templates/`), social assets (`lib/social/templates/`) and 
 3. Use the helpers in `lib/mockups/kit.ts`: `text()` escapes user copy, `logo()` nests the logo with namespaced ids, `wrap()` breaks lines with real font metrics, and `onPrimaryLarge()` picks a readable color for large text on the primary color.
 4. Give every copy of the logo in one drawing a unique id prefix, or gradients inside it will collide.
 5. Social templates declare their exact platform size, a `safe` rect and any `covered` zones (avatars, timestamps), and keep text inside the safe rect.
-6. Register the template in its `registry.ts`. It then appears in the picker, the exports and the ZIP packs automatically.
+6. Register the template: add it to `lib/social/all.ts` or `lib/mockups/all.ts` (its position is its place in the picker), add a loader line to `loaders.ts` next to it, and run `pnpm vitest run lib/social lib/mockups -u` to write `template-info.json`, the light list the picker reads. The studio loads a template's code when it is chosen, so a test fails when the list, the loaders and the templates disagree. It then appears in the picker, the exports and the ZIP packs automatically.
    - To add a **style** to an existing asset (for example a new GitHub banner look), create a file in `lib/social/templates/github/` with `githubBanner("Name", "description", (ctx) => ({ body, defs }))` and add it to `lib/social/templates/github/index.ts`. Styles share a `group`, so they appear nested under that asset in the picker.
    - Read copy from `ctx.content` and spacing from `ctx.layout.padding`, and draw the background through `backdrop(ctx, W, H, own)` so the Background style setting works in your template too.
 7. Check the result in light and dark, with a long brand name and headline, and with an uploaded non-square logo.

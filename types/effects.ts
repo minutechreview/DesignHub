@@ -14,9 +14,16 @@ export type EffectKind =
   | "text-outline"
   | "focus-ring"
   | "highlighter"
-  | "scrollbar";
+  | "scrollbar"
+  | "selection"
+  | "scroll-shadow"
+  | "button-press"
+  | "link-underline"
+  | "duotone"
+  | "scrim"
+  | "card-tilt";
 
-export type GlassSettings = {
+type GlassSettings = {
   blur: number;
   saturation: number;
   tint: string;
@@ -28,7 +35,7 @@ export type GlassSettings = {
 
 export type NeumorphismShape = "flat" | "concave" | "convex" | "pressed";
 
-export type NeumorphismSettings = {
+type NeumorphismSettings = {
   color: string;
   depth: number;
   blur: number;
@@ -49,7 +56,7 @@ export type ShadowLayer = {
   inset: boolean;
 };
 
-export type ShadowSettings = { layers: ShadowLayer[]; radius: number };
+type ShadowSettings = { layers: ShadowLayer[]; radius: number };
 
 /** One inset shadow, for inputs, wells and pressed states. */
 export type InsetSettings = {
@@ -64,7 +71,7 @@ export type InsetSettings = {
   radius: number;
 };
 
-export type GlowSettings = {
+type GlowSettings = {
   color: string;
   radius: number;
   intensity: number;
@@ -72,7 +79,7 @@ export type GlowSettings = {
   radiusCorner: number;
 };
 
-export type BorderSettings = {
+type BorderSettings = {
   colors: string[];
   /** Inner fill painted over the gradient (padding-box). */
   fill: string;
@@ -85,7 +92,7 @@ export type BorderSettings = {
 
 export type BlendMode = "overlay" | "soft-light" | "multiply" | "screen" | "normal";
 
-export type GrainSettings = {
+type GrainSettings = {
   scale: number;
   opacity: number;
   frequency: number;
@@ -207,6 +214,98 @@ export type ScrollbarSettings = {
   radius: number;
 };
 
+/** The color of selected text, checked against the page it sits on. */
+export type SelectionSettings = {
+  /** Selection background. */
+  background: string;
+  /** Selected text color, which must reach 4.5:1 on the selection background. */
+  text: string;
+  /** The page color the sample text sits on, for the preview. */
+  page: string;
+};
+
+/** Edge shadows on a scrollable box that show only while there is more content. */
+export type ScrollShadowSettings = {
+  /** Shadow color. */
+  color: string;
+  /** Shadow strength, 0 to 1. */
+  opacity: number;
+  /** Shadow height in px. */
+  size: number;
+  /** The box's own background, which the covers must match to hide the shadows. */
+  surface: string;
+};
+
+/** How the button's hover lift and press move, from a soft ease to a springy overshoot. */
+export type ButtonPressEasing = "ease-out" | "ease-in-out" | "spring" | "linear";
+
+/** A button that lifts on hover and sinks when pressed, with a transform and a shadow change. */
+export type ButtonPressSettings = {
+  /** Button color. The label is black or white, whichever reads better. */
+  fill: string;
+  /** How far the button rises on hover, in px. */
+  lift: number;
+  /** How far the button sinks while pressed, in px. */
+  press: number;
+  /** Transition time in ms. */
+  duration: number;
+  easing: ButtonPressEasing;
+  radius: number;
+};
+
+/** A two-color image filter: shadows take one color and highlights take another. */
+export type DuotoneSettings = {
+  /** Color the darkest parts of the photo become. */
+  shadow: string;
+  /** Color the brightest parts of the photo become. */
+  highlight: string;
+  /** 0 leaves the photo unchanged, 1 applies the duotone colors fully. */
+  strength: number;
+};
+
+/** A card that tilts toward the pointer in perspective, with a glare that follows the light. */
+export type CardTiltSettings = {
+  /** The tilt on hover with no script, and the limit the snippet uses, in degrees. */
+  maxTilt: number;
+  /** Perspective distance in px. Smaller is more dramatic. */
+  perspective: number;
+  /** White glare opacity, 0 to 1. */
+  glare: number;
+  /** Transition time in ms. */
+  duration: number;
+  /** Card color. */
+  fill: string;
+  radius: number;
+};
+
+/** Which edge of the image the scrim grows from. */
+export type ScrimDirection = "bottom" | "top";
+
+/** A gradient overlay that darkens one edge of an image so text over it stays readable. */
+export type ScrimSettings = {
+  direction: ScrimDirection;
+  /** Opacity at the edge, 0 to 1. It fades to zero at the other end. */
+  strength: number;
+  /** How much of the image the scrim covers, in percent. */
+  height: number;
+  /** Overlay color. */
+  color: string;
+  /** The text color checked against the scrim over a white image. */
+  text: string;
+};
+
+/** A link underline: thickness, offset and color, which grows across the text on hover. */
+export type LinkUnderlineSettings = {
+  /** Underline and link color. Must reach 4.5:1 against the page. */
+  color: string;
+  /** Underline thickness in px. */
+  thickness: number;
+  /** Gap between the text and the underline, in px. */
+  offset: number;
+  /** Page color behind the link, for the contrast check and the preview. */
+  page: string;
+};
+
 export type EffectSettingsMap = {
   glass: GlassSettings;
   neumorphism: NeumorphismSettings;
@@ -222,6 +321,13 @@ export type EffectSettingsMap = {
   "focus-ring": FocusRingSettings;
   highlighter: HighlighterSettings;
   scrollbar: ScrollbarSettings;
+  selection: SelectionSettings;
+  "scroll-shadow": ScrollShadowSettings;
+  "button-press": ButtonPressSettings;
+  "link-underline": LinkUnderlineSettings;
+  duotone: DuotoneSettings;
+  scrim: ScrimSettings;
+  "card-tilt": CardTiltSettings;
 };
 
 /** State from other studios an effect may build on. Effects read it here instead of copying it into their settings. */

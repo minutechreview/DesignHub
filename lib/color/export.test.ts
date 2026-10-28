@@ -7,6 +7,8 @@ import {
   gimpPalette,
   kritaPalette,
   markdownPalette,
+  paintNetColorLimit,
+  paintNetPalette,
   namedPalette,
   paletteSvg,
   procreateSwatches,
@@ -375,5 +377,90 @@ describe("Krita palette", () => {
     expect(amber).toContain('<ColorSetEntry name="amber-50" id="#fff7e6"');
     expect(amber).toContain('<Position row="0" column="1"/>');
     expect(xml.match(/<ColorSetEntry /g)).toHaveLength(4);
+  });
+});
+
+describe("Paint.NET palette", () => {
+  test("writes comment lines, then one uppercase AARRGGBB color per line", () => {
+    const { text, shadesDropped, colorsDropped } = paintNetPalette(palette, false, "Acme Labs");
+    expect(text).toBe("; paint.net Palette File\n; Name: Acme Labs\n; Colors: 2\nFF6366F1\nFFF59E0B\n");
+    expect(shadesDropped).toBe(false);
+    expect(colorsDropped).toBe(0);
+  });
+
+  test("includes shades after each color when they fit", () => {
+    const lines = paintNetPalette(palette, true)
+      .text.split("\n")
+      .filter((line) => !line.startsWith(";") && line);
+    expect(lines).toEqual(["FF6366F1", "FF0A0B0C", "FFF59E0B", "FFFFF7E6"]);
+  });
+
+  test("keeps alpha first and collapses line breaks in the name", () => {
+    const translucent: NamedColor[] = [{ name: "glass", color: { ...fromHex("#102030"), alpha: 0.5 }, shades: [] }];
+    expect(paintNetPalette(translucent, false, "A\nB").text).toContain("; Name: A B\n");
+    expect(paintNetPalette(translucent, false).text).toContain("\n80102030\n");
+  });
+
+  test("caps the palette at 96 colors, dropping shades first and then colors", () => {
+    const shaded = (count: number): NamedColor[] =>
+      Array.from({ length: count }, (_, i) => ({
+        name: `c${i}`,
+        color: fromHex("#336699"),
+        shades: Array.from({ length: 11 }, (_, step) => ({ step: 50 + step, color: fromHex("#99aabb") })),
+      }));
+    const dropShades = paintNetPalette(shaded(10), true);
+    expect(dropShades.shadesDropped).toBe(true);
+    expect(dropShades.text.match(/^[0-9A-F]{8}$/gm)).toHaveLength(10);
+    const tooMany = paintNetPalette(shaded(100), false);
+    expect(tooMany.text.match(/^[0-9A-F]{8}$/gm)).toHaveLength(paintNetColorLimit);
+    expect(tooMany.colorsDropped).toBe(4);
+  });
+});
+
+// A snapshot of every palette file the Color Studio download menu produces, for one fixed palette. A
+// change to any file's exact output shows up as a snapshot diff in review (#424).
+describe("palette file snapshots", () => {
+  const fixed = namedPalette([fromHex("#6366f1"), fromHex("#f59e0b"), fromHex("#10b981")], defaultShadeOptions);
+  const hex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const files = (zip: Uint8Array) =>
+    zipEntries(zip)
+      .map((entry) => `--- ${entry.name}\n${entry.text}`)
+      .join("\n");
+
+  test("GIMP and Inkscape palette (.gpl)", () => {
+    expect(gimpPalette(fixed, true, "Snapshot")).toMatchSnapshot();
+  });
+
+  test("Sketch palette (.sketchpalette)", () => {
+    expect(sketchPalette(fixed, true)).toMatchSnapshot();
+  });
+
+  test("Adobe Swatch Exchange (.ase), as hex bytes", () => {
+    expect(hex(adobeSwatchExchange(fixed, true))).toMatchSnapshot();
+  });
+
+  test("Procreate swatches (.swatches), with the files inside the zip", () => {
+    expect(files(procreateSwatches(fixed, true, "Snapshot").bytes)).toMatchSnapshot();
+  });
+
+  test("Krita palette (.kpl), with the files inside the zip", () => {
+    expect(files(kritaPalette(fixed, true, "Snapshot"))).toMatchSnapshot();
+  });
+
+  test("Paint.NET palette (.txt)", () => {
+    expect(paintNetPalette(fixed, true, "Snapshot").text).toMatchSnapshot();
+  });
+
+  test("Markdown table (.md)", () => {
+    expect(markdownPalette(fixed, "hex", true)).toMatchSnapshot();
+  });
+
+  test("PNG strip source (SVG)", () => {
+    expect(paletteSvg(fixed)).toMatchSnapshot();
+  });
+
+  test("the same fixed palette gives the same output twice", () => {
+    expect(hex(adobeSwatchExchange(fixed, true))).toBe(hex(adobeSwatchExchange(fixed, true)));
+    expect(files(kritaPalette(fixed, true, "Snapshot"))).toBe(files(kritaPalette(fixed, true, "Snapshot")));
   });
 });

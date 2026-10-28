@@ -1,58 +1,27 @@
 import { describe, expect, test } from "vitest";
 
-import { brandSurface } from "@/lib/brand/theme";
-import { buildBrandTokens } from "@/lib/brand/tokens";
-import { measureText } from "@/lib/logo/measure";
-import { getTemplate, mockupTemplates } from "@/lib/mockups/registry";
+import { allMockupTemplates as mockupTemplates } from "@/lib/mockups/all";
+import { mockupCategories } from "@/lib/mockups/types";
+import { watchFace, watchNotification } from "@/lib/mockups/templates/smartwatch";
 import { storeCaptions, captionLines } from "@/lib/mockups/templates/app-store";
 import { landingNav } from "@/lib/mockups/templates/laptop-landing";
+import { notebookCopy, NOTEBOOK_TEXT_WIDTH } from "@/lib/mockups/templates/notebook";
+import {
+  SLIDE_TITLE_LINES,
+  SLIDE_TITLE_WIDTH,
+  slideSizes,
+  slideTitleLines,
+} from "@/lib/mockups/templates/presentation";
+import { BOOTH, boothCopy } from "@/lib/mockups/templates/trade-show-booth";
+import { VAN, vanCopy } from "@/lib/mockups/templates/delivery-van";
 import type { MockupContext } from "@/lib/mockups/types";
-import { defaultSnapshot } from "@/lib/projects/snapshot";
-import { resolveSocialContent } from "@/lib/social/content";
-import { socialTemplates } from "@/lib/social/registry";
+import { allSocialTemplates as socialTemplates } from "@/lib/social/all";
 import type { SocialContext } from "@/lib/social/types";
+import { mockupContext, socialContext } from "@/lib/test/draw-context";
 import { rootSize, xmlError } from "@/lib/test/xml";
 import type { BrandMode } from "@/types/brand";
 
-/** The default brand, built the same way `useBrandTokens()` builds the live one. */
-function drawContext(mode: BrandMode, name?: string) {
-  const { brand, colors, typography, tokens, effects } = defaultSnapshot(name);
-  const tokensForBrand = buildBrandTokens({
-    profile: brand.profile,
-    swatches: colors.swatches,
-    gradient: colors.gradient,
-    headingFont: typography.headingFont,
-    bodyFont: typography.bodyFont,
-    catalog: [],
-    rhythm: typography.rhythm,
-    scale: typography.scale,
-    radiusBase: tokens.settings.radiusBase,
-    spacingBase: tokens.settings.spacingBase,
-    shadowLayers: effects.settings.shadow.layers,
-  });
-  return {
-    brand: tokensForBrand,
-    surface: brandSurface(tokensForBrand, mode),
-    mode,
-    fontCss: "",
-    measure: measureText,
-  };
-}
-
-function socialContext(mode: BrandMode, name?: string): SocialContext {
-  const draw = drawContext(mode, name);
-  const { social } = defaultSnapshot(name);
-  return {
-    ...draw,
-    content: resolveSocialContent(social.content, draw.brand),
-    layout: { padding: social.design.padding, background: social.design.background },
-  };
-}
-
-function mockupContext(mode: BrandMode, name?: string): MockupContext {
-  return { ...drawContext(mode, name), content: defaultSnapshot(name).mockups.content };
-}
-
+const getTemplate = (id: string) => mockupTemplates.find((template) => template.id === id);
 const modes: BrandMode[] = ["light", "dark"];
 // Characters that must be escaped, to catch text written into the SVG unescaped.
 const trickyName = `Tom & Jerry's "<Studio>"`;
@@ -261,6 +230,35 @@ describe("app store screenshots", () => {
   });
 });
 
+describe("smartwatch", () => {
+  test("draws two watches, the face and a notification, with the brand mark in each", () => {
+    const svg = getTemplate("smartwatch")!.render(mockupContext("dark"));
+    expect(svg.match(/<clipPath id="watch-/g)).toHaveLength(2);
+    expect(svg).toContain("9:41");
+    expect(svg).toContain(`stop-color`);
+  });
+
+  test("a long brand name, message and button label are shortened to the watch display", () => {
+    for (const mode of modes) {
+      const ctx = mockupContext(mode, "Northwind Analytics Cooperative for Sustainable Data Systems");
+      const long = {
+        ...ctx,
+        content: { ...ctx.content, headline: "word ".repeat(60), cta: "Open the whole dashboard right now" },
+      };
+      const { typography } = long.brand;
+      for (const svg of [watchFace(long), watchNotification(long)]) {
+        const texts = [...svg.matchAll(/<text class="(h|b|bb)"[^>]*font-size="(\d+)"[^>]*>([^<]*)<\/text>/g)];
+        expect(texts.length).toBeGreaterThan(2);
+        for (const [, font, size, value] of texts) {
+          const family = font === "h" ? typography.heading : typography.body;
+          const weight = font === "h" ? typography.headingWeight : font === "bb" ? 600 : 400;
+          expect(long.measure(value!, family, weight, Number(size)), value).toBeLessThanOrEqual(208);
+        }
+      }
+    }
+  });
+});
+
 describe("landing page nav", () => {
   const sixty = "Northwind Analytics Cooperative for Sustainable Data Systems";
   const boxes = (nav: ReturnType<typeof landingNav>) =>
@@ -299,4 +297,228 @@ describe("landing page nav", () => {
       expect(svg.includes(`>${link}</text>`)).toBe(nav.links.some((item) => item.label === link));
     }
   });
+});
+
+describe.each(["notion-cover", "medium-banner"])("%s with very short and very long names", (id) => {
+  const template = socialTemplates.find((item) => item.id === id)!;
+
+  test.each([
+    ["3 character", "Axe"],
+    ["60 character", "Northwind Analytics Cooperative for Sustainable Data Systems"],
+  ])("a %s name stays inside the safe area", (_label, name) => {
+    for (const mode of modes) {
+      const ctx = socialContext(mode, name);
+      for (const box of textBoxes(ctx, template.render(ctx))) {
+        expect(box.start, box.value).toBeGreaterThanOrEqual(template.safe.x - 0.5);
+        expect(box.end, box.value).toBeLessThanOrEqual(template.safe.x + template.safe.width + 0.5);
+      }
+    }
+  });
+});
+
+describe("Buy Me a Coffee cover", () => {
+  const template = socialTemplates.find((item) => item.id === "buy-me-a-coffee-cover")!;
+
+  test.each([
+    ["long words", "Plan every launch from one calm place with your whole team and never miss a deadline again, ever"],
+    ["one long word", "supercalifragilisticexpialidocious".repeat(5)],
+  ])("a %s headline stays inside the safe area", (_label, headline) => {
+    for (const mode of modes) {
+      const base = socialContext(mode, "Northwind Analytics Cooperative for Sustainable Data Systems");
+      const ctx: SocialContext = {
+        ...base,
+        content: { ...base.content, headline, cta: "Support the team with a coffee" },
+      };
+      for (const box of textBoxes(ctx, template.render(ctx))) {
+        expect(box.start, box.value).toBeGreaterThanOrEqual(template.safe.x - 0.5);
+        expect(box.end, box.value).toBeLessThanOrEqual(template.safe.x + template.safe.width + 0.5);
+      }
+    }
+  });
+
+  test("draws the call to action as the support button", () => {
+    const base = socialContext("light");
+    const ctx = { ...base, content: { ...base.content, cta: "Treat me to a coffee" } };
+    expect(template.render(ctx)).toContain("Treat me to a coffee");
+  });
+});
+
+describe("Ghost publication cover", () => {
+  const template = socialTemplates.find((item) => item.id === "ghost-cover")!;
+
+  test.each([
+    ["3 character", "Axe"],
+    ["60 character", "Northwind Analytics Cooperative for Sustainable Data Systems"],
+  ])("a %s name stays inside the safe area", (_label, name) => {
+    for (const mode of modes) {
+      const ctx = socialContext(mode, name);
+      for (const box of textBoxes(ctx, template.render(ctx))) {
+        expect(box.start, box.value).toBeGreaterThanOrEqual(template.safe.x - 0.5);
+        expect(box.end, box.value).toBeLessThanOrEqual(template.safe.x + template.safe.width + 0.5);
+      }
+    }
+  });
+
+  test.each([
+    ["long words", "Plan every launch from one calm place with your whole team and never miss a deadline again, ever"],
+    ["one long word", "supercalifragilisticexpialidocious".repeat(5)],
+  ])("a %s description stays inside the safe area", (_label, headline) => {
+    for (const mode of modes) {
+      const base = socialContext(mode);
+      const ctx: SocialContext = { ...base, content: { ...base.content, headline } };
+      for (const box of textBoxes(ctx, template.render(ctx))) {
+        expect(box.start, box.value).toBeGreaterThanOrEqual(template.safe.x - 0.5);
+        expect(box.end, box.value).toBeLessThanOrEqual(template.safe.x + template.safe.width + 0.5);
+      }
+    }
+  });
+
+  test("draws the publication name and description", () => {
+    const base = socialContext("dark");
+    const ctx: SocialContext = {
+      ...base,
+      content: { ...base.content, name: "The Slow Draft", headline: "Notes on building calm software" },
+    };
+    const svg = template.render(ctx);
+    expect(svg).toContain("The Slow Draft");
+    expect(svg).toContain("Notes on building calm software");
+  });
+});
+
+describe("long copy on the newer print and screen mockups", () => {
+  const sixty = "Northwind Analytics Cooperative for Sustainable Data Systems";
+  const word = "northwindanalyticscooperativeforsustainabledatasystems.co.uk";
+  const phone = "+44 (0) 20 7946 0958 extension 12345 and then some more";
+  const headline = `${sixty} and a headline that keeps going well past any sensible length for a slide`;
+
+  function longContext(mode: BrandMode): MockupContext {
+    const ctx = mockupContext(mode, sixty);
+    return { ...ctx, content: { ...ctx.content, headline, website: word, phone } };
+  }
+
+  const width = (ctx: MockupContext, value: string, size: number, font: "h" | "bb" | "b") => {
+    const { heading, headingWeight, body } = ctx.brand.typography;
+    return ctx.measure(
+      value,
+      font === "h" ? heading : body,
+      font === "h" ? headingWeight : font === "bb" ? 600 : 400,
+      size,
+    );
+  };
+
+  test("the notebook shortens a 60 character name and a long website instead of clipping them", () => {
+    expect(sixty).toHaveLength(60);
+    for (const mode of modes) {
+      const ctx = longContext(mode);
+      const copy = notebookCopy(ctx);
+      expect(copy.name.endsWith("...")).toBe(true);
+      expect(width(ctx, copy.name, 46, "h") + 2 * copy.name.length).toBeLessThanOrEqual(NOTEBOOK_TEXT_WIDTH);
+      expect(width(ctx, copy.website, 24, "bb") + 2 * copy.website.length).toBeLessThanOrEqual(NOTEBOOK_TEXT_WIDTH);
+      const svg = getTemplate("notebook")!.render(ctx);
+      expect(svg).toContain(copy.name);
+      expect(svg).toContain(`fill="${ctx.surface.secondary}"`);
+      expect(svg).toContain(`fill="${ctx.surface.primary}"`);
+      // The mark is debossed: a highlight copy and a pressed copy.
+      expect(svg).toContain('<g opacity=".3">');
+      expect(svg).toContain('<g opacity=".28">');
+    }
+  });
+
+  test("the notebook draws short names in full", () => {
+    const ctx = mockupContext("light", "Acme");
+    expect(notebookCopy(ctx).name).toBe("Acme");
+  });
+
+  test("the presentation wraps a long headline to at most three lines that fit the slide", () => {
+    for (const mode of modes) {
+      const ctx = longContext(mode);
+      const lines = slideTitleLines(ctx);
+      const { title } = slideSizes(ctx);
+      expect(lines.length).toBeLessThanOrEqual(SLIDE_TITLE_LINES);
+      expect(lines.at(-1)!.endsWith("...")).toBe(true);
+      for (const line of lines) expect(width(ctx, line, title, "h")).toBeLessThanOrEqual(SLIDE_TITLE_WIDTH);
+    }
+    const unbroken = {
+      ...mockupContext("light"),
+      content: { ...mockupContext("light").content, headline: "x".repeat(200) },
+    };
+    expect(slideTitleLines(unbroken)).toHaveLength(1);
+  });
+
+  test("the presentation takes slide sizes from the live type scale, within a readable range", () => {
+    const ctx = mockupContext("light");
+    const sizes = slideSizes(ctx);
+    expect(sizes.title).toBeGreaterThanOrEqual(56);
+    expect(sizes.title).toBeLessThanOrEqual(84);
+    expect(sizes.title).toBeGreaterThan(sizes.heading);
+    expect(sizes.heading).toBeGreaterThan(sizes.body);
+    const scale = ctx.brand.typography.scale.map((step) => ({ ...step, maxPx: step.maxPx * 3 }));
+    const big = { ...ctx, brand: { ...ctx.brand, typography: { ...ctx.brand.typography, scale } } };
+    expect(slideSizes(big).title).toBe(84);
+  });
+
+  test("the presentation draws two slides and falls back to the brand name without a headline", () => {
+    const ctx = mockupContext("light", "Acme");
+    const empty = { ...ctx, content: { ...ctx.content, headline: "" } };
+    expect(slideTitleLines(empty)).toEqual(["Acme"]);
+    expect(
+      getTemplate("presentation")!
+        .render(ctx)
+        .match(/viewBox="0 0 1280 720"/g),
+    ).toHaveLength(2);
+  });
+
+  test("the trade show booth keeps every line of copy inside its flat panel", () => {
+    expect(BOOTH.bannerLines).toBe(5);
+    for (const mode of modes) {
+      const ctx = longContext(mode);
+      const copy = boothCopy(ctx);
+      expect(copy.wall.length).toBeLessThanOrEqual(2);
+      expect(copy.banner.length).toBeLessThanOrEqual(BOOTH.bannerLines);
+      for (const line of copy.wall) expect(width(ctx, line, 58, "h")).toBeLessThanOrEqual(BOOTH.wallTextWidth);
+      for (const line of copy.banner) expect(width(ctx, line, 21, "h")).toBeLessThanOrEqual(BOOTH.bannerTextWidth);
+      expect(width(ctx, copy.counterName, 36, "h")).toBeLessThanOrEqual(BOOTH.counterTextWidth);
+      expect(width(ctx, copy.website, 26, "bb")).toBeLessThanOrEqual(BOOTH.wallTextWidth);
+      expect(copy.website.endsWith("...")).toBe(true);
+    }
+  });
+
+  test("the trade show booth draws the walls and floor as polygons toward one vanishing point", () => {
+    const svg = getTemplate("trade-show-booth")!.render(mockupContext("light"));
+    expect(svg.match(/<polygon points=/g)!.length).toBeGreaterThanOrEqual(3);
+    expect(svg).toContain(`stop-color="${mockupContext("light").surface.primary}"`);
+  });
+
+  test("the delivery van shortens a 60 character name, website and phone to its side panel", () => {
+    for (const mode of modes) {
+      const ctx = longContext(mode);
+      const copy = vanCopy(ctx);
+      expect(copy.name.length).toBeLessThanOrEqual(VAN.nameLines);
+      for (const line of copy.name) expect(width(ctx, line, 70, "h")).toBeLessThanOrEqual(VAN.textWidth);
+      expect(width(ctx, copy.website, 40, "bb")).toBeLessThanOrEqual(VAN.websiteWidth);
+      expect(width(ctx, copy.phone, 40, "bb")).toBeLessThanOrEqual(VAN.websiteWidth);
+      expect(copy.website.endsWith("...")).toBe(true);
+    }
+  });
+
+  test("the delivery van wraps the livery with a clip path in the brand colors", () => {
+    for (const mode of modes) {
+      const ctx = mockupContext(mode);
+      const svg = getTemplate("delivery-van")!.render(ctx);
+      expect(svg).toContain('<clipPath id="van-body">');
+      expect(svg).toContain('clip-path="url(#van-body)"');
+      expect(svg).toContain(`stop-color="${ctx.surface.primary}"`);
+      expect(svg).toContain(`stop-color="${ctx.surface.secondary}"`);
+    }
+  });
+});
+
+test("every mockup is in a category the picker shows, and every category has mockups", () => {
+  for (const template of mockupTemplates) expect(mockupCategories, template.id).toContain(template.category);
+  for (const category of mockupCategories) {
+    expect(
+      mockupTemplates.some((template) => template.category === category),
+      category,
+    ).toBe(true);
+  }
 });

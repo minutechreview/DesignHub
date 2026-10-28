@@ -10,11 +10,15 @@ import { VisionPreview } from "@/components/accessibility/vision-preview";
 import { ContrastResults } from "@/components/accessibility/contrast-results";
 import { FocusIndicatorResults } from "@/components/accessibility/focus-indicator-results";
 import { GradientContrastResults } from "@/components/accessibility/gradient-contrast-results";
+import { HeadingsResults } from "@/components/accessibility/headings-results";
+import { MotionResults } from "@/components/accessibility/motion-results";
 import { ReadabilityPanel } from "@/components/accessibility/readability-panel";
 import { TargetsPanel } from "@/components/accessibility/targets-panel";
 import { TargetsPreview } from "@/components/accessibility/targets-preview";
+import { TextSpacingPanel } from "@/components/accessibility/text-spacing-panel";
 import { A11yTypePanel } from "@/components/accessibility/a11y-type-panel";
 import { A11yReportPanel } from "@/components/accessibility/a11y-report-panel";
+import { useI18n } from "@/components/layout/locale-provider";
 import { StudioLayout } from "@/components/layout/studio-layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGoogleFonts } from "@/hooks/use-google-font";
@@ -23,14 +27,10 @@ import { useA11yReport } from "@/hooks/use-a11y-report";
 import { useA11yStore } from "@/store/a11y-store";
 import type { A11yTab } from "@/types/a11y";
 
-const tabs: { value: A11yTab; label: string }[] = [
-  { value: "contrast", label: "Contrast" },
-  { value: "vision", label: "Vision" },
-  { value: "readability", label: "Reading" },
-  { value: "targets", label: "Targets" },
-];
+const tabs = ["contrast", "vision", "readability", "targets", "motion"] as const satisfies readonly A11yTab[];
 
 export function A11yWorkspace() {
+  const { t } = useI18n();
   const tab = useA11yStore((state) => state.tab);
   const setTab = useA11yStore((state) => state.setTab);
   const typography = useA11yStore((state) => state.typography);
@@ -44,10 +44,10 @@ export function A11yWorkspace() {
       id="accessibility"
       controls={
         <Tabs value={tab} onValueChange={(value) => setTab(value as A11yTab)} className="gap-4">
-          <TabsList aria-label="Accessibility tools" className="w-full">
+          <TabsList aria-label={t("a11y.tabs.label")} className="h-auto w-full flex-wrap">
             {tabs.map((item) => (
-              <TabsTrigger key={item.value} value={item.value} className="px-1.5 text-xs">
-                {item.label}
+              <TabsTrigger key={item} value={item} className="h-auto min-w-fit px-1.5 py-1.5 text-xs">
+                {t(`a11y.tab.${item}`)}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -64,9 +64,14 @@ export function A11yWorkspace() {
           <TabsContent value="readability" className="flex flex-col gap-4">
             <A11yTypePanel />
             <ReadabilityPanel />
+            <TextSpacingPanel />
+            <HeadingsResults section={report.sections.headings} />
           </TabsContent>
           <TabsContent value="targets" className="flex flex-col gap-4">
             <TargetsPanel />
+          </TabsContent>
+          <TabsContent value="motion" className="flex flex-col gap-4">
+            <MotionResults section={report.sections.motion} />
           </TabsContent>
         </Tabs>
       }
